@@ -1,0 +1,5 @@
+# Language file for source-highlight
+# Generated automatically by classes.c
+include "/usr/share/source-highlight/cpp.lang"
+comment start "#"
+redef preproc = "C preprocessor command is not compatible with the use of # as comment character in GTS"
