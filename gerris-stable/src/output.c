@@ -38,9 +38,12 @@
 #include <sys/types.h>
 #include <sys/ipc.h>
 #include <sys/shm.h>
-static int first = 1;
-static double* mem;
 
+/*int updated = 1;
+double sentValue = 0;
+double value = 0;
+*/
+#include "pythonCon.h"
 
 /**
  * Writing simulation data.
@@ -962,35 +965,8 @@ static gboolean gfs_output_solid_force_event (GfsEvent * event,
 	     vf.x*Ln, vf.y*Ln, vf.z*Ln,
 	     pm.x*Ln*L, pm.y*Ln*L, pm.z*Ln*L,
 	     vm.x*Ln*L, vm.y*Ln*L, vm.z*Ln*L);
-    if(first){
-    // generacion de la clave
-        key_t clave = ftok ("/home/pablo/lshort.pdf",0);
-        if ( clave == -1 )
-                printf("ERROR KEY \n");
-        else {
-                // creacion de la memoria compartida
-                int shmId = shmget ( clave,sizeof(double),0644|IPC_CREAT );
-
-                if ( shmId == -1 )
-                        printf("ERROR SHMEM GET \n");
-                else {
-                        // attach del bloque de memoria al espacio de direcciones del proceso
-                        void* ptrTemporal = shmat ( shmId,NULL,0 );
-
-                        if ( ptrTemporal == (void *) -1 ) {
-                                printf("ERROR SHMEM ATTCH \n");
-                        } else {
-        //                        printf("SHM [proc %d] - Creada con id %d. \n", getpid (), shmId);
-                               mem = (double*) ptrTemporal;
- 				first =0;
-        //                        printf("ESCRIBO VALOR DE LA SHMEM %f \n", pf.x);
-                        }
-                }
-        }
-
-    }
-    *mem = pf.x;
-
+    
+    sendValue("pf.x", pf.x);
      
     return TRUE;
   }
@@ -1237,34 +1213,7 @@ static gboolean gfs_output_location_event (GfsEvent * event,
 	    if(!strcmp(v->name,"U")){
 		printf("FOUND U \n");
 	        double d = GFS_VALUE (cell,v);
-		if(first){
-    			// generacion de la clave
-        		key_t clave = ftok ("/home/pablo/lshort.pdf",0);
-        		if ( clave == -1 )
-                		printf("ERROR KEY \n");
-        		else {
-                		// creacion de la memoria compartida
-                		int shmId = shmget ( clave,sizeof(double),0644|IPC_CREAT );
-
-                		if ( shmId == -1 )
-                        		printf("ERROR SHMEM GET \n");
-                		else {
-                        		// attach del bloque de memoria al espacio de direcciones del proceso
-                        		void* ptrTemporal = shmat ( shmId,NULL,0 );
-
-                        		if ( ptrTemporal == (void *) -1 ) {
-                                		printf("ERROR SHMEM ATTCH \n");
-                        		} else {
-        //                       		 printf("SHM [proc %d] - Creada con id %d. \n", getpid (), shmId);
-                               			mem = (double*) ptrTemporal;
-                                		first =0;
-        //                        		printf("ESCRIBO VALOR DE LA SHMEM %f \n", pf.x);
-                        		}
-                		}
-        		}
-
-    		}
-    		*mem = d;
+    		sendValue("U", d);
 	    } 
 
 

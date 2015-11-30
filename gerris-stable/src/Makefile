@@ -131,27 +131,27 @@ LTLIBRARIES = $(lib_LTLIBRARIES)
 am__DEPENDENCIES_1 =
 libgfs2D_la_DEPENDENCIES = $(am__DEPENDENCIES_1)
 am__libgfs2D_la_SOURCES_DIST = ftt.c fluid.c variable.c output.c \
-	solid.c poisson.c advection.c boundary.c mpi_boundary.c \
-	timestep.c domain.c init.c refine.c event.c simulation.c \
-	graphic.c adaptive.c source.c tension.c vof.c utils.c ocean.c \
-	wave.c levelset.c myc.h myc2d.h cartesian.c surface.c \
-	unstructured.c map.c river.c moving.c balance.c metric.c \
-	particle.c ftt.h fluid.h variable.h output.h solid.h poisson.h \
-	advection.h boundary.h mpi_boundary.h timestep.h domain.h \
-	init.h refine.h event.h simulation.h graphic.h adaptive.h \
-	source.h tension.h vof.h utils.h ocean.h wave.h levelset.h \
-	isocube.h cartesian.h surface.h unstructured.h map.h river.h \
-	moving.h balance.h metric.h particle.h version.h \
-	open_memstream.c
+	pythonCon.c solid.c poisson.c advection.c boundary.c \
+	mpi_boundary.c timestep.c domain.c init.c refine.c event.c \
+	simulation.c graphic.c adaptive.c source.c tension.c vof.c \
+	utils.c ocean.c wave.c levelset.c myc.h myc2d.h cartesian.c \
+	surface.c unstructured.c map.c river.c moving.c balance.c \
+	metric.c particle.c ftt.h fluid.h variable.h output.h solid.h \
+	poisson.h advection.h boundary.h mpi_boundary.h timestep.h \
+	domain.h init.h refine.h event.h simulation.h graphic.h \
+	adaptive.h source.h tension.h vof.h utils.h ocean.h wave.h \
+	levelset.h isocube.h cartesian.h surface.h unstructured.h \
+	map.h river.h moving.h balance.h metric.h particle.h version.h \
+	myFunction.h pythonCon.h open_memstream.c
 am__objects_1 =
 #am__objects_2 = libgfs2D_la-open_memstream.lo
 am__objects_3 = libgfs2D_la-ftt.lo libgfs2D_la-fluid.lo \
 	libgfs2D_la-variable.lo libgfs2D_la-output.lo \
-	libgfs2D_la-solid.lo libgfs2D_la-poisson.lo \
-	libgfs2D_la-advection.lo libgfs2D_la-boundary.lo \
-	libgfs2D_la-mpi_boundary.lo libgfs2D_la-timestep.lo \
-	libgfs2D_la-domain.lo libgfs2D_la-init.lo \
-	libgfs2D_la-refine.lo libgfs2D_la-event.lo \
+	libgfs2D_la-pythonCon.lo libgfs2D_la-solid.lo \
+	libgfs2D_la-poisson.lo libgfs2D_la-advection.lo \
+	libgfs2D_la-boundary.lo libgfs2D_la-mpi_boundary.lo \
+	libgfs2D_la-timestep.lo libgfs2D_la-domain.lo \
+	libgfs2D_la-init.lo libgfs2D_la-refine.lo libgfs2D_la-event.lo \
 	libgfs2D_la-simulation.lo libgfs2D_la-graphic.lo \
 	libgfs2D_la-adaptive.lo libgfs2D_la-source.lo \
 	libgfs2D_la-tension.lo libgfs2D_la-vof.lo libgfs2D_la-utils.lo \
@@ -172,21 +172,21 @@ libgfs2D_la_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) \
 	$(CFLAGS) $(libgfs2D_la_LDFLAGS) $(LDFLAGS) -o $@
 libgfs3D_la_DEPENDENCIES = $(am__DEPENDENCIES_1)
 am__libgfs3D_la_SOURCES_DIST = ftt.c fluid.c variable.c output.c \
-	solid.c poisson.c advection.c boundary.c mpi_boundary.c \
-	timestep.c domain.c init.c refine.c event.c simulation.c \
-	graphic.c adaptive.c source.c tension.c vof.c utils.c ocean.c \
-	wave.c levelset.c myc.h myc2d.h cartesian.c surface.c \
-	unstructured.c map.c river.c moving.c balance.c metric.c \
-	particle.c ftt.h fluid.h variable.h output.h solid.h poisson.h \
-	advection.h boundary.h mpi_boundary.h timestep.h domain.h \
-	init.h refine.h event.h simulation.h graphic.h adaptive.h \
-	source.h tension.h vof.h utils.h ocean.h wave.h levelset.h \
-	isocube.h cartesian.h surface.h unstructured.h map.h river.h \
-	moving.h balance.h metric.h particle.h version.h \
-	open_memstream.c
+	pythonCon.c solid.c poisson.c advection.c boundary.c \
+	mpi_boundary.c timestep.c domain.c init.c refine.c event.c \
+	simulation.c graphic.c adaptive.c source.c tension.c vof.c \
+	utils.c ocean.c wave.c levelset.c myc.h myc2d.h cartesian.c \
+	surface.c unstructured.c map.c river.c moving.c balance.c \
+	metric.c particle.c ftt.h fluid.h variable.h output.h solid.h \
+	poisson.h advection.h boundary.h mpi_boundary.h timestep.h \
+	domain.h init.h refine.h event.h simulation.h graphic.h \
+	adaptive.h source.h tension.h vof.h utils.h ocean.h wave.h \
+	levelset.h isocube.h cartesian.h surface.h unstructured.h \
+	map.h river.h moving.h balance.h metric.h particle.h version.h \
+	myFunction.h pythonCon.h open_memstream.c
 #am__objects_4 = open_memstream.lo
-am__objects_5 = ftt.lo fluid.lo variable.lo output.lo solid.lo \
-	poisson.lo advection.lo boundary.lo mpi_boundary.lo \
+am__objects_5 = ftt.lo fluid.lo variable.lo output.lo pythonCon.lo \
+	solid.lo poisson.lo advection.lo boundary.lo mpi_boundary.lo \
 	timestep.lo domain.lo init.lo refine.lo event.lo simulation.lo \
 	graphic.lo adaptive.lo source.lo tension.lo vof.lo utils.lo \
 	ocean.lo wave.lo levelset.lo cartesian.lo surface.lo \
@@ -285,6 +285,10 @@ CCDEPMODE = depmode=gcc3
 CFLAGS = -g -O2 -D_XOPEN_SOURCE=700 -D_BSD_SOURCE -D_GNU_SOURCE -Wall -Werror-implicit-function-declaration -Wmissing-prototypes -Wmissing-declarations -pipe -std=c99
 CPP = mpicc -E
 CPPFLAGS = 
+CXX = g++
+CXXCPP = g++ -E
+CXXDEPMODE = depmode=gcc3
+CXXFLAGS = -g -O2
 CYGPATH_W = echo
 DEFS = -DHAVE_CONFIG_H
 DEPDIR = .deps
@@ -372,6 +376,7 @@ abs_top_builddir = /home/pablo/gerris/gerris-stable
 abs_top_srcdir = /home/pablo/gerris/gerris-stable
 ac_ct_AR = ar
 ac_ct_CC = mpicc
+ac_ct_CXX = g++
 ac_ct_DUMPBIN = 
 ac_ct_F77 = 
 ac_ct_FC = 
@@ -474,7 +479,7 @@ GFS_HDS = \
 	particle.h \
 	version.h \
         myFunction.h \
-        MemoriaCompartida.h
+        pythonCon.h 
 
 pkginclude_HEADERS = \
 	$(GFS_HDS) \
@@ -490,6 +495,7 @@ SRC = \
 	fluid.c \
 	variable.c \
 	output.c \
+        pythonCon.c \
 	solid.c \
 	poisson.c \
 	advection.c \
@@ -733,6 +739,7 @@ include ./$(DEPDIR)/libgfs2D_la-open_memstream.Plo
 include ./$(DEPDIR)/libgfs2D_la-output.Plo
 include ./$(DEPDIR)/libgfs2D_la-particle.Plo
 include ./$(DEPDIR)/libgfs2D_la-poisson.Plo
+include ./$(DEPDIR)/libgfs2D_la-pythonCon.Plo
 include ./$(DEPDIR)/libgfs2D_la-refine.Plo
 include ./$(DEPDIR)/libgfs2D_la-river.Plo
 include ./$(DEPDIR)/libgfs2D_la-simulation.Plo
@@ -755,6 +762,7 @@ include ./$(DEPDIR)/open_memstream.Plo
 include ./$(DEPDIR)/output.Plo
 include ./$(DEPDIR)/particle.Plo
 include ./$(DEPDIR)/poisson.Plo
+include ./$(DEPDIR)/pythonCon.Plo
 include ./$(DEPDIR)/refine.Plo
 include ./$(DEPDIR)/river.Plo
 include ./$(DEPDIR)/simulation.Plo
@@ -817,6 +825,13 @@ libgfs2D_la-output.lo: output.c
 #	$(AM_V_CC)source='output.c' object='libgfs2D_la-output.lo' libtool=yes \
 #	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) \
 #	$(AM_V_CC_no)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libgfs2D_la_CFLAGS) $(CFLAGS) -c -o libgfs2D_la-output.lo `test -f 'output.c' || echo '$(srcdir)/'`output.c
+
+libgfs2D_la-pythonCon.lo: pythonCon.c
+	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libgfs2D_la_CFLAGS) $(CFLAGS) -MT libgfs2D_la-pythonCon.lo -MD -MP -MF $(DEPDIR)/libgfs2D_la-pythonCon.Tpo -c -o libgfs2D_la-pythonCon.lo `test -f 'pythonCon.c' || echo '$(srcdir)/'`pythonCon.c
+	$(AM_V_at)$(am__mv) $(DEPDIR)/libgfs2D_la-pythonCon.Tpo $(DEPDIR)/libgfs2D_la-pythonCon.Plo
+#	$(AM_V_CC)source='pythonCon.c' object='libgfs2D_la-pythonCon.lo' libtool=yes \
+#	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) \
+#	$(AM_V_CC_no)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libgfs2D_la_CFLAGS) $(CFLAGS) -c -o libgfs2D_la-pythonCon.lo `test -f 'pythonCon.c' || echo '$(srcdir)/'`pythonCon.c
 
 libgfs2D_la-solid.lo: solid.c
 	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libgfs2D_la_CFLAGS) $(CFLAGS) -MT libgfs2D_la-solid.lo -MD -MP -MF $(DEPDIR)/libgfs2D_la-solid.Tpo -c -o libgfs2D_la-solid.lo `test -f 'solid.c' || echo '$(srcdir)/'`solid.c

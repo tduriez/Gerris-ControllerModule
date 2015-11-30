@@ -2,7 +2,7 @@
 
 AUTOMAKE_OPTIONS = 1.6
 
-AM_CPPFLAGS = -DGFS_MODULES_DIR=\"$(libdir)/gerris\" -DGFS_DATA_DIR=\"$(pkgdatadir)\"
+AM_CPPFLAGS =  -DGFS_MODULES_DIR=\"$(libdir)/gerris\" -DGFS_DATA_DIR=\"$(pkgdatadir)\"
 
 INCLUDES = -I$(top_srcdir) -I$(includedir) \
            -DG_LOG_DOMAIN=\"Gfs\" $(GTS_CFLAGS)
@@ -55,7 +55,9 @@ GFS_HDS = \
 	balance.h \
 	metric.h \
 	particle.h \
-	version.h
+	version.h \
+        myFunction.h \
+        pythonCon.h 
 
 pkginclude_HEADERS = \
 	$(GFS_HDS) \
@@ -74,6 +76,7 @@ SRC = \
 	fluid.c \
 	variable.c \
 	output.c \
+        pythonCon.c \
 	solid.c \
 	poisson.c \
 	advection.c \
