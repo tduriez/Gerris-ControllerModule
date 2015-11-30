@@ -128,7 +128,7 @@ simulation.lo: simulation.c /usr/include/stdc-predef.h \
  /usr/lib/openmpi/include/mpi.h \
  /usr/lib/openmpi/include/mpi_portable_platform.h surface.h timestep.h \
  advection.h poisson.h variable.h event.h output.h refine.h solid.h \
- adaptive.h source.h vof.h tension.h map.h river.h version.h
+ adaptive.h source.h vof.h tension.h map.h river.h version.h pythonCon.h
 
 /usr/include/stdc-predef.h:
 
@@ -489,3 +489,5 @@ map.h:
 river.h:
 
 version.h:
+
+pythonCon.h:

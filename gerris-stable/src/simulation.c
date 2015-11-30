@@ -36,6 +36,7 @@
 #include "map.h"
 #include "river.h"
 #include "version.h"
+#include "pythonCon.h"
 
 /**
  * The incompressible Euler solver.
@@ -435,6 +436,8 @@ static void simulation_run (GfsSimulation * sim)
   GfsVariable ** gc = sim->advection_params.gc ? g : NULL;
   GfsDomain * domain;
   GSList * i;
+
+  initServer();
 
   domain = GFS_DOMAIN (sim);
 
