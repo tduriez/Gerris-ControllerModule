@@ -1377,7 +1377,6 @@ void gfs_function_read (GfsFunction * f, gpointer domain, GtsFile * fp)
 {
   GtsObject * o = (GtsObject *) f;
 
-  printf("FUNCTION READ");
   g_return_if_fail (f != NULL);
   g_return_if_fail (domain != NULL);
   g_return_if_fail (fp != NULL);
@@ -1458,7 +1457,6 @@ gdouble gfs_function_spatial_value (GfsFunction * f, const FttVector * p)
   }
   else
     dimensional = f->val;
-  //printf("READING VAL: %f", f->val);
   return adimensional_value (f, dimensional);
 }
 
@@ -1562,7 +1560,6 @@ gdouble gfs_read_constant (GtsFile * fp, gpointer domain)
   if (fp->type == GTS_ERROR)
     return G_MAXDOUBLE;
   gdouble val = gfs_function_get_constant_value (f);
-  printf("READ CONSTANT VALOR: %f \n", val);
   gts_object_destroy (GTS_OBJECT (f));
   if (val == G_MAXDOUBLE)
     gts_file_error (fp, "expecting a constant");

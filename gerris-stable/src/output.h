@@ -119,6 +119,25 @@ struct _GfsOutputSolidForce {
 
 GfsOutputClass * gfs_output_solid_force_class (void);
 
+/* GfsControllerSolidForce: Header */
+
+typedef struct _GfsControllerSolidForce         GfsControllerSolidForce;
+
+struct _GfsControllerSolidForce {
+  /*< private >*/
+  GfsOutput parent;
+
+  /*< public >*/
+  GfsFunction * weight;
+};
+
+#define GFS_CONTROLLER_SOLID_FORCE(obj)            GTS_OBJECT_CAST (obj,\
+                                                 GfsControllerSolidForce,\
+                                                 gfs_controller_solid_force_class ())
+
+GfsOutputClass * gfs_controller_solid_force_class (void);
+
+
 /* GfsOutputLocation: Header */
 
 typedef struct _GfsOutputLocation         GfsOutputLocation;
@@ -140,6 +159,31 @@ struct _GfsOutputLocation {
 						 gfs_output_location_class ()))
 
 GfsOutputClass * gfs_output_location_class  (void);
+
+
+/* GfsControllerLocation: Header */
+
+typedef struct _GfsControllerLocation         GfsControllerLocation;
+
+struct _GfsControllerLocation {
+  /*< private >*/
+  GfsOutput parent;
+
+  /*< public >*/
+  GArray * p;
+  gchar * precision, * label;
+  gboolean interpolate;
+};
+
+#define GFS_CONTROLLER_LOCATION(obj)            GTS_OBJECT_CAST (obj,\
+					         GfsControllerLocation,\
+					         gfs_controller_location_class ())
+#define GFS_IS_CONTROLLER_LOCATION(obj)         (gts_object_is_from_class (obj,\
+						 gfs_controller_location_class ()))
+
+GfsOutputClass * gfs_controller_location_class  (void);
+
+
 
 /* GfsOutputSimulation: Header */
 
