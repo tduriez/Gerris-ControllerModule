@@ -135,7 +135,7 @@ struct _GfsControllerSolidForce {
                                                  GfsControllerSolidForce,\
                                                  gfs_controller_solid_force_class ())
 
-GfsOutputClass * gfs_controller_solid_force_class (void);
+GfsEventClass * gfs_controller_solid_force_class (void);
 
 
 /* GfsOutputLocation: Header */
@@ -167,7 +167,7 @@ typedef struct _GfsControllerLocation         GfsControllerLocation;
 
 struct _GfsControllerLocation {
   /*< private >*/
-  GfsOutput parent;
+  GfsEvent parent;
 
   /*< public >*/
   GArray * p;
@@ -181,7 +181,7 @@ struct _GfsControllerLocation {
 #define GFS_IS_CONTROLLER_LOCATION(obj)         (gts_object_is_from_class (obj,\
 						 gfs_controller_location_class ()))
 
-GfsOutputClass * gfs_controller_location_class  (void);
+GfsEventClass * gfs_controller_location_class  (void);
 
 
 

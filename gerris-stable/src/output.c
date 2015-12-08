@@ -1064,7 +1064,7 @@ static gboolean gfs_controller_solid_force_event (GfsEvent * event,
   return FALSE;
 }
 
-static void gfs_controller_solid_force_class_init (GfsOutputClass * klass)
+static void gfs_controller_solid_force_class_init (GfsEventClass * klass)
 {
   GTS_OBJECT_CLASS (klass)->read = gfs_controller_solid_force_read;
   GTS_OBJECT_CLASS (klass)->write = gfs_controller_solid_force_write;
@@ -1072,9 +1072,9 @@ static void gfs_controller_solid_force_class_init (GfsOutputClass * klass)
   GFS_EVENT_CLASS (klass)->event = gfs_controller_solid_force_event;
 }
 
-GfsOutputClass * gfs_controller_solid_force_class (void)
+GfsEventClass * gfs_controller_solid_force_class (void)
 {
-  static GfsOutputClass * klass = NULL;
+  static GfsEventClass * klass = NULL;
 
   if (klass == NULL) {
     GtsObjectClassInfo gfs_controller_solid_force_info = {
@@ -1494,13 +1494,13 @@ static gboolean gfs_controller_location_event (GfsEvent * event,
       (event, sim)) {
     GfsDomain * domain = GFS_DOMAIN (sim);
     GfsControllerLocation * location = GFS_CONTROLLER_LOCATION (event);
-    FILE * fp = GFS_OUTPUT (event)->file->fp;
+    //FILE * fp = GFS_OUTPUT (event)->file->fp;
     GfsUnionFile uf;
-    FILE * fpp = ((domain->pid < 0 || GFS_OUTPUT (event)->parallel) ? fp:
-		  gfs_union_open (GFS_OUTPUT (event)->file->fp, domain->pid, &uf));
+    //FILE * fpp = ((domain->pid < 0 || GFS_OUTPUT (event)->parallel) ? fp:
+	//	  gfs_union_open (GFS_OUTPUT (event)->file->fp, domain->pid, &uf));
     guint i;
 
-    if (GFS_OUTPUT (event)->first_call) {
+    /*if (GFS_OUTPUT (event)->first_call) {
       GSList * i = domain->variables;
       guint nv = 5;
 
@@ -1511,7 +1511,7 @@ static gboolean gfs_controller_location_event (GfsEvent * event,
 	i = i->next;
       }
       fputc ('\n', fp);
-    }
+    }*/
     gchar * pformat = g_strdup_printf ("%s %s %s %s", 
 				       location->precision, location->precision, 
 				       location->precision, location->precision);
@@ -1524,16 +1524,16 @@ static gboolean gfs_controller_location_event (GfsEvent * event,
       if (cell != NULL) {
 	GSList * i = domain->variables;
 	
-	fprintf (fpp, pformat, sim->time.t, p.x, p.y, p.z);
+//	fprintf (fpp, pformat, sim->time.t, p.x, p.y, p.z);
 	while (i) {
 	  GfsVariable * v = i->data;
 	  if (v->name)
-	    fprintf (fpp, vformat, gfs_dimensional_value (v, 
+	   /* fprintf (fpp, vformat, gfs_dimensional_value (v, 
 							  location->interpolate ? 
 							  gfs_interpolate (cell, pm, v) :
 							  GFS_VALUE (cell, v)));
 	  
-
+*/
 	    if(!strcmp(v->name,"U")){
 		printf("FOUND U \n");
 	        double d = GFS_VALUE (cell,v);
@@ -1543,21 +1543,21 @@ static gboolean gfs_controller_location_event (GfsEvent * event,
 
 	    i = i->next;
 	}
-	fputc ('\n', fpp);
+//	fputc ('\n', fpp);
       }
     }
 
     g_free (pformat);
     g_free (vformat);
-    fflush (fp);
-    if (!(domain->pid < 0 || GFS_OUTPUT (event)->parallel))
+  //  fflush (fp);
+    /*if (!(domain->pid < 0 || GFS_OUTPUT (event)->parallel))
       gfs_union_close (GFS_OUTPUT (event)->file->fp, domain->pid, &uf);
-    return TRUE;
+    return TRUE;*/
   }
   return FALSE;
 }
 
-static void gfs_controller_location_class_init (GfsOutputClass * klass)
+static void gfs_controller_location_class_init (GfsEventClass * klass)
 {
   GFS_EVENT_CLASS (klass)->event = gfs_controller_location_event;
   GTS_OBJECT_CLASS (klass)->destroy = gfs_controller_location_destroy;
@@ -1572,21 +1572,21 @@ static void gfs_controller_location_init (GfsControllerLocation * object)
   object->interpolate = TRUE;
 }
 
-GfsOutputClass * gfs_controller_location_class (void)
+GfsEventClass * gfs_controller_location_class (void)
 {
-  static GfsOutputClass * klass = NULL;
+  static GfsEventClass * klass = NULL;
 
   if (klass == NULL) {
     GtsObjectClassInfo gfs_controller_location_info = {
       "GfsControllerLocation",
       sizeof (GfsControllerLocation),
-      sizeof (GfsOutputClass),
+      sizeof (GfsEventClass),
       (GtsObjectClassInitFunc) gfs_controller_location_class_init,
       (GtsObjectInitFunc) gfs_controller_location_init,
       (GtsArgSetFunc) NULL,
       (GtsArgGetFunc) NULL
     };
-    klass = gts_object_class_new (GTS_OBJECT_CLASS (gfs_output_class ()),
+    klass = gts_object_class_new (GTS_OBJECT_CLASS (gfs_event_class ()),
 				  &gfs_controller_location_info);
   }
 
