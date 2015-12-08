@@ -1041,23 +1041,11 @@ static gboolean gfs_controller_solid_force_event (GfsEvent * event,
       (event, sim) &&
       sim->advection_params.dt > 0.) {
     GfsDomain * domain = GFS_DOMAIN (sim);
-    //FILE * fp = GFS_OUTPUT (event)->file->fp;
     FttVector pf, vf, pm, vm;
     gdouble L = sim->physical_params.L, Ln = pow (L, 3. + FTT_DIMENSION - 2.);
-
-    //if (GFS_OUTPUT (event)->first_call)
-     // fputs ("# 1: T (2,3,4): Pressure force (5,6,7): Viscous force "
-//	     "(8,9,10): Pressure moment (11,12,13): Viscous moment\n", fp);
     
     gfs_domain_solid_force (domain, &pf, &vf, &pm, &vm, GFS_CONTROLLER_SOLID_FORCE (event)->weight);
-    /*fprintf (fp, "%g %g %g %g %g %g %g %g %g %g %g %g %g\n",
-	     sim->time.t,
-	     pf.x*Ln, pf.y*Ln, pf.z*Ln,
-	     vf.x*Ln, vf.y*Ln, vf.z*Ln,
-	     pm.x*Ln*L, pm.y*Ln*L, pm.z*Ln*L,
-	     vm.x*Ln*L, vm.y*Ln*L, vm.z*Ln*L);
-    */
-    sendValue("pf.x", pf.x);
+    sendForceValue(pf,vf,pm,vm, sim->time.i, sim->time.t);
      
     return TRUE;
   }
@@ -1494,24 +1482,9 @@ static gboolean gfs_controller_location_event (GfsEvent * event,
       (event, sim)) {
     GfsDomain * domain = GFS_DOMAIN (sim);
     GfsControllerLocation * location = GFS_CONTROLLER_LOCATION (event);
-    //FILE * fp = GFS_OUTPUT (event)->file->fp;
     GfsUnionFile uf;
-    //FILE * fpp = ((domain->pid < 0 || GFS_OUTPUT (event)->parallel) ? fp:
-	//	  gfs_union_open (GFS_OUTPUT (event)->file->fp, domain->pid, &uf));
     guint i;
 
-    /*if (GFS_OUTPUT (event)->first_call) {
-      GSList * i = domain->variables;
-      guint nv = 5;
-
-      fputs ("# 1:t 2:x 3:y 4:z", fp);
-      while (i) {
-	if (GFS_VARIABLE (i->data)->name)
-	  fprintf (fp, " %d:%s", nv++, GFS_VARIABLE (i->data)->name);
-	i = i->next;
-      }
-      fputc ('\n', fp);
-    }*/
     gchar * pformat = g_strdup_printf ("%s %s %s %s", 
 				       location->precision, location->precision, 
 				       location->precision, location->precision);
@@ -1524,7 +1497,6 @@ static gboolean gfs_controller_location_event (GfsEvent * event,
       if (cell != NULL) {
 	GSList * i = domain->variables;
 	
-//	fprintf (fpp, pformat, sim->time.t, p.x, p.y, p.z);
 	while (i) {
 	  GfsVariable * v = i->data;
 	  if (v->name)
@@ -1534,25 +1506,19 @@ static gboolean gfs_controller_location_event (GfsEvent * event,
 							  GFS_VALUE (cell, v)));
 	  
 */
-	    if(!strcmp(v->name,"U")){
-		printf("FOUND U \n");
-	        double d = GFS_VALUE (cell,v);
-    		sendValue("U", d);
-	    } 
-
+	    printf("FOUND VAR %s \n", v->name);
+	    double d = location->interpolate ? 
+		gfs_interpolate (cell, pm, v) : GFS_VALUE (cell, v);
+    		sendLocationValue(v->name, d, sim->time.i, sim->time.t, p.x,p.y,p.z);
+	     
 
 	    i = i->next;
 	}
-//	fputc ('\n', fpp);
       }
     }
 
     g_free (pformat);
     g_free (vformat);
-  //  fflush (fp);
-    /*if (!(domain->pid < 0 || GFS_OUTPUT (event)->parallel))
-      gfs_union_close (GFS_OUTPUT (event)->file->fp, domain->pid, &uf);
-    return TRUE;*/
   }
   return FALSE;
 }
