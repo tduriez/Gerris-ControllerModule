@@ -39,10 +39,6 @@
 #include <sys/ipc.h>
 #include <sys/shm.h>
 
-/*int updated = 1;
-double sentValue = 0;
-double value = 0;
-*/
 #include "pythonCon.h"
 
 /**
@@ -1045,22 +1041,22 @@ static gboolean gfs_controller_solid_force_event (GfsEvent * event,
       (event, sim) &&
       sim->advection_params.dt > 0.) {
     GfsDomain * domain = GFS_DOMAIN (sim);
-    FILE * fp = GFS_OUTPUT (event)->file->fp;
+    //FILE * fp = GFS_OUTPUT (event)->file->fp;
     FttVector pf, vf, pm, vm;
     gdouble L = sim->physical_params.L, Ln = pow (L, 3. + FTT_DIMENSION - 2.);
 
-    if (GFS_OUTPUT (event)->first_call)
-      fputs ("# 1: T (2,3,4): Pressure force (5,6,7): Viscous force "
-	     "(8,9,10): Pressure moment (11,12,13): Viscous moment\n", fp);
+    //if (GFS_OUTPUT (event)->first_call)
+     // fputs ("# 1: T (2,3,4): Pressure force (5,6,7): Viscous force "
+//	     "(8,9,10): Pressure moment (11,12,13): Viscous moment\n", fp);
     
     gfs_domain_solid_force (domain, &pf, &vf, &pm, &vm, GFS_CONTROLLER_SOLID_FORCE (event)->weight);
-    fprintf (fp, "%g %g %g %g %g %g %g %g %g %g %g %g %g\n",
+    /*fprintf (fp, "%g %g %g %g %g %g %g %g %g %g %g %g %g\n",
 	     sim->time.t,
 	     pf.x*Ln, pf.y*Ln, pf.z*Ln,
 	     vf.x*Ln, vf.y*Ln, vf.z*Ln,
 	     pm.x*Ln*L, pm.y*Ln*L, pm.z*Ln*L,
 	     vm.x*Ln*L, vm.y*Ln*L, vm.z*Ln*L);
-    
+    */
     sendValue("pf.x", pf.x);
      
     return TRUE;
@@ -1084,13 +1080,13 @@ GfsOutputClass * gfs_controller_solid_force_class (void)
     GtsObjectClassInfo gfs_controller_solid_force_info = {
       "GfsControllerSolidForce",
       sizeof (GfsControllerSolidForce),
-      sizeof (GfsOutputClass),
+      sizeof (GfsEventClass),
       (GtsObjectClassInitFunc) gfs_controller_solid_force_class_init,
       (GtsObjectInitFunc) NULL,
       (GtsArgSetFunc) NULL,
       (GtsArgGetFunc) NULL
     };
-    klass = gts_object_class_new (GTS_OBJECT_CLASS (gfs_output_class ()),
+    klass = gts_object_class_new (GTS_OBJECT_CLASS (gfs_event_class ()),
 				  &gfs_controller_solid_force_info);
   }
 

@@ -125,7 +125,7 @@ typedef struct _GfsControllerSolidForce         GfsControllerSolidForce;
 
 struct _GfsControllerSolidForce {
   /*< private >*/
-  GfsOutput parent;
+  GfsEvent parent;
 
   /*< public >*/
   GfsFunction * weight;

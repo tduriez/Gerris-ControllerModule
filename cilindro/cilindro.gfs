@@ -23,10 +23,10 @@
   AdaptVorticity { istep = 1 } { maxlevel = 7  maxcells = 100000  cmax = 5e-2 }
   
   OutputTime { step = 0.02 } stderr
-  # ControllerSolidForce { istep = 10 } forces.dat
+  ControllerSolidForce { istep = 10 } 
 
   GfsOutputSimulation { start= 0.06 step = .234159  } cilindro_f060A400-%3.3f.gfs 
-  GfsControllerLocation { istep=10 } data positionXYZ
+ # GfsControllerLocation { istep=10 } data positionXYZ
   #GfsOutputLocController { istep =10} 
   Init { start = 0.06 step=0.234159} { 
   vort=dx("V")-dy("U") R1=(U*(U*dx("V")+V*dy("V"))-V*(U*dx("U")+V*dy("U")))
