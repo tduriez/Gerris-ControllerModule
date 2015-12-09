@@ -37,14 +37,14 @@ typedef struct _CallController		CallController;
 
 struct _CallController {
 	int32_t type;
-	char funcName[30];
+	char funcName[32];
 };
 
 typedef struct _ReturnController	ReturnController;
 
 struct _ReturnController {
-	char funcName[30];
 	double returnValue;
+	char funcName[32];
 };
 
 #endif
