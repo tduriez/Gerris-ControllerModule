@@ -17,7 +17,7 @@ struct _ForceValue {
 };
 
 struct _LocationValue{
-        char varName[10];
+        char varName[12];
         double value;
         double position[3];
 };

@@ -34,9 +34,9 @@ int initServer(){
 	mkfifo(recvfifo, 0666);
 	mkfifo(valuesfifo, 0666);
 
-	callFd = open(callfifo, O_RDWR); 
-	recvFd = open(recvfifo, O_RDWR);
-	valuesFd = open(valuesfifo, O_RDWR);
+	callFd = open(callfifo, O_WRONLY); 
+	recvFd = open(recvfifo, O_RDONLY);
+	valuesFd = open(valuesfifo, O_WRONLY);
 
 	return 0;
 }
@@ -107,8 +107,8 @@ void sendLocationValue(char* var, double value, int step, double time, double x,
         valueToSend.type = 1;
         valueToSend.time = time;
         valueToSend.step = step;
-	strncpy(valueToSend.data.locationValue.varName, var, 9);
-	valueToSend.data.locationValue.varName[9] = '\0';
+	strncpy(valueToSend.data.locationValue.varName, var, 11);
+	valueToSend.data.locationValue.varName[11] = '\0';
         valueToSend.data.locationValue.value = value;
 	valueToSend.data.locationValue.position[0] = x;
 	valueToSend.data.locationValue.position[1] = y;

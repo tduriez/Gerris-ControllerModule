@@ -1,8 +1,8 @@
 
-def ff(n):
+def ff(f,l):
 	print "Inside defined ff function"
-	return n+1
+	return 1
 
-def myfunc(n):
-	return n+2
+def myfunc(f,l):
+	return 2
 
