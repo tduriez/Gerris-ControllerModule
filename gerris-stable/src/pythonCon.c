@@ -107,16 +107,16 @@ void sendLocationValue(char* var, double value, int step, double time, double x,
         valueToSend.type = 1;
         valueToSend.time = time;
         valueToSend.step = step;
-	strncpy(valueToSend.data.locationValue.varName, var, 11);
-	valueToSend.data.locationValue.varName[11] = '\0';
+	strncpy(valueToSend.data.locationValue.varName, var, 63);
+	valueToSend.data.locationValue.varName[63] = '\0';
         valueToSend.data.locationValue.value = value;
 	valueToSend.data.locationValue.position[0] = x;
 	valueToSend.data.locationValue.position[1] = y;
 	valueToSend.data.locationValue.position[2] = z;
         // Send it through FIFO.
         write(valuesFd,&valueToSend,sizeof(valueToSend));
-
-        //printf("Sending var %s value: %f  time: %f step %d location (x,y,z): (%f, %f, %f) \n", valueToSend.data.locationValue.varName, valueToSend.data.locationValue.value, valueToSend.time, valueToSend.step,  valueToSend.data.locationValue.position[0],  valueToSend.data.locationValue.position[1],  valueToSend.data.locationValue.position[2]);
+	printf("Size: %d", sizeof(valueToSend));
+        printf("Sending var %s value: %f  time: %f step %d location (x,y,z): (%f, %f, %f) \n", valueToSend.data.locationValue.varName, valueToSend.data.locationValue.value, valueToSend.time, valueToSend.step,  valueToSend.data.locationValue.position[0],  valueToSend.data.locationValue.position[1],  valueToSend.data.locationValue.position[2]);
 
         sentValue = value;
         updated = 1;

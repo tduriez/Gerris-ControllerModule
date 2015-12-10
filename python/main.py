@@ -26,7 +26,7 @@ if not opts:
 for opt, arg in opts:
 	if opt == '-f':
 		scriptPath = arg
-	elif opt == '.n':
+	elif opt == '-n':
 		cant = arg
 
 callPath = "/tmp/callfifo"

@@ -34,46 +34,49 @@ class ValuesController(threading.Thread):
 		self.length = length
 		
 	def run(self):
+		print self.length
 		toRead = Struct('idi12d')
-		toReadLoc = Struct('idi12sd3d')
+		toReadLoc = Struct('idi4d64s')
 		while True:
 			#try:
 				print toRead.size
+				print self.length
 				query = self.fifo.read(toRead.size) # 112 B
 				querySt = toRead.unpack(query)
 				print querySt
 				print "type"
 				print querySt[0]
-				print "time"
-				print querySt[1]
-				print "step"
-				print querySt[2]
-				print "pfx o varname"
-				print querySt[3]
-				print "pfy o varname"
-				print querySt[4]
-				print "pfz o varname"
-				print querySt[5]
-				print "vfx o varname"
-				print querySt[6]
-				print "vfy o varname"
-				print querySt[7]
-				print "vfz o varname"
-				print querySt[8]
-				print "pmx o varname"
-				print querySt[9]
-				print "pmy o varname"
-				print querySt[10]
-				print "pmz o value"
-				print querySt[11]
-				print "vmx o pos0"
-				print querySt[12]
-				print "vmy o pos1"
-				print querySt[13]
-				print "vmz o pos2"
-				print querySt[14]
 				if (querySt[0] == 0):	# type: 0 force
 					print "Type FORCE"
+					print "time"
+                                	print querySt[1]
+                                	print "step"
+                                	print querySt[2]
+                                	print "pfx"
+                                	print querySt[3]
+                                	print "pfy"
+                                	print querySt[4]
+                                	print "pfz"
+                                	print querySt[5]
+                                	print "vfx"
+                                	print querySt[6]
+                                	print "vfy"
+                                	print querySt[7]
+                                	print "vfz"
+                                	print querySt[8]
+                                	print "pmx"
+                                	print querySt[9]
+                                	print "pmy"
+                                	print querySt[10]
+                                	print "pmz"
+                                	print querySt[11]
+                                	print "vmx"
+                                	print querySt[12]
+                                	print "vmy"
+                                	print querySt[13]
+                                	print "vmz"
+                                	print querySt[14]
+
 					self.lock.acquire()
 					# guardo valores en forcesList
 					fVal = ForceValue(\
@@ -90,7 +93,7 @@ class ValuesController(threading.Thread):
 					
 				elif (querySt[0] == 1): #type: 1 location
 					print "Type LOCATION"
-					querySt = toReadLoc.unpack(query[0:toReadLoc.size])
+					querySt = toReadLoc.unpack(query)
 					print querySt
 					print "type"
 					print querySt[0]
@@ -98,15 +101,15 @@ class ValuesController(threading.Thread):
 					print querySt[1]
 					print "step"
 					print querySt[2]
-					print "varname"
-					print querySt[3]
 					print "value"
-					print querySt[4]
+					print querySt[3]
 					print "pos0"
-					print querySt[5]
+					print querySt[4]
 					print "pos1"
-					print querySt[6]
+					print querySt[5]
 					print "pos2"
+					print querySt[6]
+					print "varname"
 					print querySt[7]
 					self.lock.acquire()
 					# guardo valores en locationsMap
