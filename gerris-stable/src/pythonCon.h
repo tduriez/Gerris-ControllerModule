@@ -3,6 +3,7 @@
 #include "ftt.h"
 #include <stdint.h>
 
+int useController(int use);
 int initServer();
 double getValue(char* function);
 void sendForceValue(FttVector pf, FttVector vf, FttVector pm, FttVector vm, int step, double time);

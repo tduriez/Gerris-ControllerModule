@@ -16,11 +16,17 @@ static int valuesFd = 0;
 static char* callfifo = "/tmp/callfifo";
 static char* recvfifo = "/tmp/recvfifo";
 static char* valuesfifo = "/tmp/valuesfifo";
+static int useCont = 0;
+
+int useController(int use){
+	useCont = use;
+	return 0;
+}
 
 int initServer(){
-	printf("Inciando conexion con python \n");
+//	printf("Inciando conexion con python \n");
 	struct stat st;
-
+	if(useCont){
     	// if fifos exist, delete them
     	if (stat(callfifo, &st) == 0)
         	unlink(callfifo);
@@ -37,50 +43,47 @@ int initServer(){
 	callFd = open(callfifo, O_WRONLY); 
 	recvFd = open(recvfifo, O_RDONLY);
 	valuesFd = open(valuesfifo, O_WRONLY);
-
+	printf("Inciado server");
+	}
 	return 0;
 }
 
 int closeServer(){
+	if(useCont){
 	close(callFd);
 	close(recvFd);
 	close(valuesFd);
 	unlink(callfifo);
 	unlink(recvfifo);
 	unlink(valuesfifo);
-}
-
-
-double help(){
-	return sentValue * -10.0;
+	}
 }
 
 double getValue(char* function){
-	help();
 	if(updated){
-		printf("Calling %s function \n ", function);
+//		printf("Calling %s function \n ", function);
 		CallController callController;
 		callController.type = 0;
 		strncpy(callController.funcName, function, 31);
 		callController.funcName[31] = '\0';
                 write(callFd, (void*)&callController,sizeof(callController));
-		printf("Call size %d", sizeof(CallController));
-		fflush(stdout);
+//		printf("Call size %d", sizeof(CallController));
+//		fflush(stdout);
 		char buf[40];
 		int bytes = read(recvFd,buf,40);
-		printf("read %d \n",bytes);
+//		printf("read %d \n",bytes);
 		buf[39] = '\0';
 		ReturnController* returnValue = (ReturnController*) buf;
                 actualValue = returnValue->returnValue;
                 updated = 0;
-		printf("Value got: %s %f \n",returnValue->funcName, actualValue);
+//		printf("Value got: %s %f \n",returnValue->funcName, actualValue);
 		fflush(stdout);
 	}
 	return actualValue;
 }
 
 void sendForceValue(FttVector pf, FttVector vf, FttVector pm, FttVector vm, int step, double time){
-        printf("Actual value %f \n", actualValue);
+  //      printf("Actual value %f \n", actualValue);
 	ValueController valueToSend;
 	// FORCE TYPE
 	valueToSend.type = 0;
@@ -93,15 +96,15 @@ void sendForceValue(FttVector pf, FttVector vf, FttVector pm, FttVector vm, int 
 	// Send it through FIFO.
 	write(valuesFd,&valueToSend,sizeof(valueToSend));
 
-	printf("Sending pf.x: %f pf.y: %f pf.z: %f vm.x: %f vm.y: %f vm.z: %f  time: %f step %d \n", valueToSend.data.forceValue.pf.x,valueToSend.data.forceValue.pf.y,valueToSend.data.forceValue.pf.z,valueToSend.data.forceValue.vm.x,valueToSend.data.forceValue.vm.y,valueToSend.data.forceValue.vm.z, valueToSend.time, valueToSend.step);
+//	printf("Sending pf.x: %f pf.y: %f pf.z: %f vm.x: %f vm.y: %f vm.z: %f  time: %f step %d \n", valueToSend.data.forceValue.pf.x,valueToSend.data.forceValue.pf.y,valueToSend.data.forceValue.pf.z,valueToSend.data.forceValue.vm.x,valueToSend.data.forceValue.vm.y,valueToSend.data.forceValue.vm.z, valueToSend.time, valueToSend.step);
 
 	sentValue = pf.x;
         updated = 1;
-        printf("Updated %d \n", updated);
+  //      printf("Updated %d \n", updated);
 }
 
 void sendLocationValue(char* var, double value, int step, double time, double x, double y, double z){
-	printf("Actual value %f \n", actualValue);
+//	printf("Actual value %f \n", actualValue);
         ValueController valueToSend;
         // LOCATION TYPE
         valueToSend.type = 1;
@@ -115,12 +118,12 @@ void sendLocationValue(char* var, double value, int step, double time, double x,
 	valueToSend.data.locationValue.position[2] = z;
         // Send it through FIFO.
         write(valuesFd,&valueToSend,sizeof(valueToSend));
-	printf("Size: %d", sizeof(valueToSend));
-        printf("Sending var %s value: %f  time: %f step %d location (x,y,z): (%f, %f, %f) \n", valueToSend.data.locationValue.varName, valueToSend.data.locationValue.value, valueToSend.time, valueToSend.step,  valueToSend.data.locationValue.position[0],  valueToSend.data.locationValue.position[1],  valueToSend.data.locationValue.position[2]);
+//	printf("Size: %d", sizeof(valueToSend));
+ //       printf("Sending var %s value: %f  time: %f step %d location (x,y,z): (%f, %f, %f) \n", valueToSend.data.locationValue.varName, valueToSend.data.locationValue.value, valueToSend.time, valueToSend.step,  valueToSend.data.locationValue.position[0],  valueToSend.data.locationValue.position[1],  valueToSend.data.locationValue.position[2]);
 
         sentValue = value;
         updated = 1;
-        printf("Updated %d \n", updated);
+   //     printf("Updated %d \n", updated);
 
 }
 

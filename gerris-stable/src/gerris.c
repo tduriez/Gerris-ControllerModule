@@ -36,6 +36,7 @@
 #include "adaptive.h"
 #include "solid.h"
 #include "version.h"
+#include "pythonCon.h"
 
 static void set_box_pid (GfsBox * box, gint * pid)
 {
@@ -102,10 +103,10 @@ int main (int argc, char * argv[])
       { NULL }
     };
     int option_index = 0;
-    switch ((c = getopt_long (argc, argv, "hVs:ip:PD:I:mde:b:vB",
+    switch ((c = getopt_long (argc, argv, "hVs:ip:PD:I:mde:b:vBc",
 			      long_options, &option_index))) {
 #else /* not HAVE_GETOPT_LONG */
-    switch ((c = getopt (argc, argv, "hVs:ip:PD:I:mde:b:vB"))) {
+    switch ((c = getopt (argc, argv, "hVs:ip:PD:I:mde:b:vBc"))) {
 #endif /* not HAVE_GETOPT_LONG */
     case 'P': /* profile */
       profile = TRUE;
@@ -158,6 +159,9 @@ int main (int argc, char * argv[])
     case 'v': /* verbose */
       verbose = TRUE;
       break;
+    case 'c':
+      useController(1);
+      break;	
     case 'h': { /* help */
       gchar * usage = 
 	"Usage: gerris [OPTION] FILE\n"
