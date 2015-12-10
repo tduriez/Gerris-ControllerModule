@@ -15,8 +15,9 @@ import ValuesController
 
 scriptPath = "./"
 cant = 1
+debug = False
 try:
-	opts, args = getopt.getopt(sys.argv[1:],"f:n:")
+	opts, args = getopt.getopt(sys.argv[1:],"f:n:z")
 except getopt.GetoptError:
 	print "main.py -f <pathToFileScript> -n <numberOfPreviousValues>"
 	sys.exit(1)
@@ -28,6 +29,8 @@ for opt, arg in opts:
 		scriptPath = arg
 	elif opt == '-n':
 		cant = arg
+	elif opt == '-z':
+		debug = True
 
 callPath = "/tmp/callfifo"
 recvPath = "/tmp/recvfifo"
@@ -43,17 +46,17 @@ forcesValues = collections.deque()
 locationsValues = collections.deque()
 lock = threading.Lock()
 valuesThread = ValuesController.ValuesController(valuesFifo,\
-												forcesValues,\
-												locationsValues,\
-												lock,\
-												cant)
+		forcesValues,\
+		locationsValues,\
+		lock,\
+		cant, debug)
 												
 callThread = FunctionController.FunctionController(callFifo,\
-												returnFifo,\
-												foo,\
-												lock,\
-												forcesValues,\
-												locationsValues)
+						returnFifo,\
+						foo,\
+						lock,\
+						forcesValues,\
+						locationsValues, debug)
 
 valuesThread.start()
 callThread.start()
