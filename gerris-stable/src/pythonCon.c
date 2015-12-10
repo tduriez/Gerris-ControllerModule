@@ -60,29 +60,29 @@ int closeServer(){
 
 double getValue(char* function){
 	if(updated){
-//		printf("Calling %s function \n ", function);
+		printf("Calling %s function \n ", function);
 		CallController callController;
 		callController.type = 0;
 		strncpy(callController.funcName, function, 31);
 		callController.funcName[31] = '\0';
                 write(callFd, (void*)&callController,sizeof(callController));
-//		printf("Call size %d", sizeof(CallController));
-//		fflush(stdout);
+		printf("Call size %d", sizeof(CallController));
+		fflush(stdout);
 		char buf[40];
 		int bytes = read(recvFd,buf,40);
-//		printf("read %d \n",bytes);
+		printf("read %d \n",bytes);
 		buf[39] = '\0';
 		ReturnController* returnValue = (ReturnController*) buf;
                 actualValue = returnValue->returnValue;
                 updated = 0;
-//		printf("Value got: %s %f \n",returnValue->funcName, actualValue);
+		printf("Value got: %s %f \n",returnValue->funcName, actualValue);
 		fflush(stdout);
 	}
 	return actualValue;
 }
 
 void sendForceValue(FttVector pf, FttVector vf, FttVector pm, FttVector vm, int step, double time){
-  //      printf("Actual value %f \n", actualValue);
+    printf("Actual value %f \n", actualValue);
 	ValueController valueToSend;
 	// FORCE TYPE
 	valueToSend.type = 0;
@@ -95,15 +95,15 @@ void sendForceValue(FttVector pf, FttVector vf, FttVector pm, FttVector vm, int 
 	// Send it through FIFO.
 	write(valuesFd,&valueToSend,sizeof(valueToSend));
 
-//	printf("Sending pf.x: %f pf.y: %f pf.z: %f vm.x: %f vm.y: %f vm.z: %f  time: %f step %d \n", valueToSend.data.forceValue.pf.x,valueToSend.data.forceValue.pf.y,valueToSend.data.forceValue.pf.z,valueToSend.data.forceValue.vm.x,valueToSend.data.forceValue.vm.y,valueToSend.data.forceValue.vm.z, valueToSend.time, valueToSend.step);
+    printf("Sending pf.x: %f pf.y: %f pf.z: %f vm.x: %f vm.y: %f vm.z: %f  time: %f step %d \n", valueToSend.data.forceValue.pf.x,valueToSend.data.forceValue.pf.y,valueToSend.data.forceValue.pf.z,valueToSend.data.forceValue.vm.x,valueToSend.data.forceValue.vm.y,valueToSend.data.forceValue.vm.z, valueToSend.time, valueToSend.step);
 
 	sentValue = pf.x;
         updated = 1;
-  //      printf("Updated %d \n", updated);
+     printf("Updated %d \n", updated);
 }
 
 void sendLocationValue(char* var, double value, int step, double time, double x, double y, double z){
-//	printf("Actual value %f \n", actualValue);
+	printf("Actual value %f \n", actualValue);
         ValueController valueToSend;
         // LOCATION TYPE
         valueToSend.type = 1;
@@ -117,12 +117,12 @@ void sendLocationValue(char* var, double value, int step, double time, double x,
 	valueToSend.data.locationValue.position[2] = z;
         // Send it through FIFO.
         write(valuesFd,&valueToSend,sizeof(valueToSend));
-//	printf("Size: %d", sizeof(valueToSend));
- //       printf("Sending var %s value: %f  time: %f step %d location (x,y,z): (%f, %f, %f) \n", valueToSend.data.locationValue.varName, valueToSend.data.locationValue.value, valueToSend.time, valueToSend.step,  valueToSend.data.locationValue.position[0],  valueToSend.data.locationValue.position[1],  valueToSend.data.locationValue.position[2]);
+	printf("Size: %d", sizeof(valueToSend));
+        printf("Sending var %s value: %f  time: %f step %d location (x,y,z): (%f, %f, %f) \n", valueToSend.data.locationValue.varName, valueToSend.data.locationValue.value, valueToSend.time, valueToSend.step,  valueToSend.data.locationValue.position[0],  valueToSend.data.locationValue.position[1],  valueToSend.data.locationValue.position[2]);
 
         sentValue = value;
         updated = 1;
-   //     printf("Updated %d \n", updated);
+        printf("Updated %d \n", updated);
 
 }
 

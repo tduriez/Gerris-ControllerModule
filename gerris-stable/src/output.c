@@ -1449,7 +1449,7 @@ static void gfs_controller_location_read (GtsObject ** o, GtsFile * fp)
 
 static void gfs_controller_location_write (GtsObject * o, FILE * fp)
 {
-  GfsOutputLocation * l = GFS_CONTROLLER_LOCATION (o);
+  GfsControllerLocation * l = GFS_CONTROLLER_LOCATION (o);
   guint i;
 
   (* GTS_OBJECT_CLASS (gfs_controller_location_class ())->parent_class->write) (o, fp);
@@ -1478,7 +1478,7 @@ static void gfs_controller_location_write (GtsObject * o, FILE * fp)
 static gboolean gfs_controller_location_event (GfsEvent * event, 
 					   GfsSimulation * sim)
 {
-  if ((* GFS_EVENT_CLASS (GTS_OBJECT_CLASS (gfs_controller_location_class ())->parent_class)->event)
+   if ((* GFS_EVENT_CLASS (GTS_OBJECT_CLASS (gfs_controller_location_class ())->parent_class)->event)
       (event, sim)) {
     GfsDomain * domain = GFS_DOMAIN (sim);
     GfsControllerLocation * location = GFS_CONTROLLER_LOCATION (event);
@@ -1503,8 +1503,8 @@ static gboolean gfs_controller_location_event (GfsEvent * event,
 	  
 	    double d = location->interpolate ? 
 		gfs_interpolate (cell, pm, v) : GFS_VALUE (cell, v);
-    	    
-            sendLocationValue(v->name, d, sim->time.i, sim->time.t, p.x,p.y,p.z); 
+    	 
+           sendLocationValue(v->name, d, sim->time.i, sim->time.t, p.x,p.y,p.z); 
 	  }
 	  i = i->next;
 	}
