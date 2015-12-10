@@ -1499,20 +1499,14 @@ static gboolean gfs_controller_location_event (GfsEvent * event,
 	
 	while (i) {
 	  GfsVariable * v = i->data;
-	  if (v->name)
-	   /* fprintf (fpp, vformat, gfs_dimensional_value (v, 
-							  location->interpolate ? 
-							  gfs_interpolate (cell, pm, v) :
-							  GFS_VALUE (cell, v)));
+	  if (v->name){
 	  
-*/
-	    printf("FOUND VAR %s \n", v->name);
 	    double d = location->interpolate ? 
 		gfs_interpolate (cell, pm, v) : GFS_VALUE (cell, v);
-    		sendLocationValue(v->name, d, sim->time.i, sim->time.t, p.x,p.y,p.z);
-	     
-
-	    i = i->next;
+    	    
+            sendLocationValue(v->name, d, sim->time.i, sim->time.t, p.x,p.y,p.z); 
+	  }
+	  i = i->next;
 	}
       }
     }

@@ -462,7 +462,6 @@ static void simulation_run (GfsSimulation * sim)
   i = domain->variables;
   while (i) {
     GfsVariable *var = i->data;
-    printf("Var name: %s ivalue: %d units: %f components:", var->name, var->i, var->units);
     int cant = var->component;
     for (int j = 0; j < cant; j++)
       printf(" %d ", var->vector[j]);

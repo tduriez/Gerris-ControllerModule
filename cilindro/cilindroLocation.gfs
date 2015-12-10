@@ -6,17 +6,17 @@
 		static double Ut = 1.5;
 		static double omega =4.00/0.05;
 		static double fn=1.8;
-		static double ff=0.60;
+		//static double ff=0.60;
   }
 
-  Time { end = 3. }	
+  Time { end = 35. }	
 
   RefineSolid 9
   Solid   ((x)*(x) + y*y - R1*R1)
   SurfaceBc U Dirichlet  (x*x + y*y < R1*R1 ? 0.  : -y*omega * 
-  cos(ff*2*3.14159*fn*t)  )
+  cos(controller("ffpos")*2*3.14159*fn*t)  )
   SurfaceBc V Dirichlet  (x*x + y*y < R1*R1 ?  0.  : 
-  x*omega*cos(ff*2*3.14159*fn*t) ) 
+  x*omega*cos(controller("ffpos")*2*3.14159*fn*t) ) 
    SourceDiffusion {} U 0.001
    SourceDiffusion {} V 0.001
   AdaptVorticity { istep = 1 } { maxlevel = 7  maxcells = 100000  cmax = 5e-2 }
@@ -25,7 +25,7 @@
   OutputSolidForce { istep = 10 } forces.dat
 
   GfsOutputSimulation { start= 0.06 step = .234159  } cilindro_f060A400-%3.3f.gfs 
-  #GfsControllerLocation { istep=10 } positionXYZ
+  GfsControllerLocation { istep=10 } positionXYZ
  
   #Init { start = 0.06 step=0.234159} { 
   #vort=dx("V")-dy("U") R1=(U*(U*dx("V")+V*dy("V"))-V*(U*dx("U")+V*dy("U")))

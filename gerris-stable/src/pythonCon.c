@@ -43,7 +43,6 @@ int initServer(){
 	callFd = open(callfifo, O_WRONLY); 
 	recvFd = open(recvfifo, O_RDONLY);
 	valuesFd = open(valuesfifo, O_WRONLY);
-	printf("Inciado server");
 	}
 	return 0;
 }

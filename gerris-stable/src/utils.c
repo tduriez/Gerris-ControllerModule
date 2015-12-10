@@ -748,7 +748,6 @@ void gfs_pending_functions_compilation (GtsFile * fp)
       return;
     }
     gchar * finname = g_strdup_printf ("%s/function.c", dirname);
-    printf("Dirname: %s",dirname);
     FILE * fin = fopen (finname, "w");
     fputs (pending_functions->str, fin);
     fclose (fin);
