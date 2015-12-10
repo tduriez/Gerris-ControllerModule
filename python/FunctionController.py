@@ -3,6 +3,7 @@
 import threading
 from struct import *
 
+# Thread for waiting for a call from gerris, execute the controller and return the result.
 class FunctionController(threading.Thread):
 	def __init__(self,callFifo,returnFifo,src,lock,forcesList,locMap, debug):
 		super(FunctionController,self).__init__()

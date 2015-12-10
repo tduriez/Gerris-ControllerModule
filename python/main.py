@@ -16,6 +16,8 @@ import ValuesController
 scriptPath = "./"
 cant = 1
 debug = False
+
+# Get arguments.
 try:
 	opts, args = getopt.getopt(sys.argv[1:],"f:n:z")
 except getopt.GetoptError:
@@ -32,6 +34,7 @@ for opt, arg in opts:
 	elif opt == '-z':
 		debug = True
 
+# Open fifos.
 callPath = "/tmp/callfifo"
 recvPath = "/tmp/recvfifo"
 valuesPath = "/tmp/valuesfifo"
@@ -39,12 +42,16 @@ callFifo = open(callPath, 'r')
 returnFifo = open(recvPath, 'w',0)
 valuesFifo = open(valuesPath, 'r')
 value = 0
+
+# Load functions defined by user.
 foo = imp.load_source('script', scriptPath)
 
 
 forcesValues = collections.deque()
 locationsValues = collections.deque()
 lock = threading.Lock()
+
+# Create Values and Function threads.
 valuesThread = ValuesController.ValuesController(valuesFifo,\
 		forcesValues,\
 		locationsValues,\
