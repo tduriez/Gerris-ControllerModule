@@ -1,5 +1,5 @@
 
-def ff(forcesList,locList):
+def ffForce(forcesList,locList):
 	print "Inside defined ff function"
 	print len(forcesList)
 	if len(forcesList) > 0:
@@ -24,3 +24,5 @@ def ffpos(forcesList,locList):
 def myfunc(f,l):
 	return 2
 
+def bobo(f,l):
+	return 0.6;
