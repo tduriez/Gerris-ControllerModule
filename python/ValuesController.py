@@ -31,16 +31,14 @@ class ValuesController(threading.Thread):
 		self.forcesList = forcesList
 		self.locationsMap = locationsMap
 		self.lock = lock
-		self.length = length
+		self.length = int(length)
 		
 	def run(self):
-		print self.length
 		toRead = Struct('idi12d')
 		toReadLoc = Struct('idi4d64s')
 		while True:
 			#try:
 				print toRead.size
-				print self.length
 				query = self.fifo.read(toRead.size) # 112 B
 				querySt = toRead.unpack(query)
 				print querySt
@@ -85,8 +83,8 @@ class ValuesController(threading.Thread):
 						(querySt[9],querySt[10],querySt[11]),\
 						(querySt[12],querySt[13],querySt[14]))
 					new = ValueControl(querySt[1],querySt[2],fVal)
-					self.forcesList.append(new)
-					if len(self.forcesList) >= self.length:
+					self.forcesList.append(new)			
+					if len(self.forcesList) > self.length:
 						self.forcesList.popleft()
 					self.lock.release()
 					print "Force guardada"

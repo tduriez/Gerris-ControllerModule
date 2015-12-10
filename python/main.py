@@ -38,21 +38,6 @@ valuesFifo = open(valuesPath, 'r')
 value = 0
 foo = imp.load_source('script', scriptPath)
 
-"""while True:
-	query = callFifo.read(36)
-	querySt = struct.unpack('i32s', query)
-	queryType = querySt[0] 
-	print "Query type %d" % queryType
-	funcName = querySt[1].rstrip(' \t\r\n\0')
-	print "Func Name %s" % funcName
-	funcion = getattr(foo, str(funcName))
-	result = funcion(4)
-	length = len(funcName)
-	s = struct.pack('d32s' ,result,funcName)
-	print "Sending %s" % s
-	print len(s)
-	returnFifo.write(s)		
-"""
 
 forcesValues = collections.deque()
 locationsValues = {}

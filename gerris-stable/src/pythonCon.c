@@ -93,7 +93,7 @@ void sendForceValue(FttVector pf, FttVector vf, FttVector pm, FttVector vm, int 
 	// Send it through FIFO.
 	write(valuesFd,&valueToSend,sizeof(valueToSend));
 
-	printf("Sending pf.x value: %f  time: %f step %d \n", valueToSend.data.forceValue.pf.x, valueToSend.time, valueToSend.step);
+	printf("Sending pf.x: %f pf.y: %f pf.z: %f vm.x: %f vm.y: %f vm.z: %f  time: %f step %d \n", valueToSend.data.forceValue.pf.x,valueToSend.data.forceValue.pf.y,valueToSend.data.forceValue.pf.z,valueToSend.data.forceValue.vm.x,valueToSend.data.forceValue.vm.y,valueToSend.data.forceValue.vm.z, valueToSend.time, valueToSend.step);
 
 	sentValue = pf.x;
         updated = 1;
