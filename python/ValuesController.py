@@ -47,7 +47,7 @@ class ValuesController(threading.Thread):
 		toRead = Struct('idi12d')
 		toReadLoc = Struct('idi4d64s')
 		while True:
-			#try:
+			try:
 				query = self.fifo.read(toRead.size) # 112 B
 				querySt = toRead.unpack(query)
 				if self.debug:
@@ -100,9 +100,8 @@ class ValuesController(threading.Thread):
 						print "Location guardada"
 				else:
 					print "Error de tipo de valor a guardar"
-			#except:
-				#print "Error en ValuesController"
-				#return
+			except:
+				return
 
 	def printForce(self, querySt):
 		 if self.debug:

@@ -20,7 +20,7 @@ class FunctionController(threading.Thread):
 		toWrite = Struct('d32s')
 		
 		while True:
-			#try:
+			try:
 				query = self.callFifo.read(toRead.size) # 36 B
 				querySt = toRead.unpack(query)
 				queryType = querySt[0] 
@@ -37,6 +37,5 @@ class FunctionController(threading.Thread):
 				if self.debug:
 					print "Sending %f %s" % (float(result), funcName)
 				self.returnFifo.write(s)
-			#except:
-				#print "Error en FunctionController"
-				#return	
+			except:
+				return	
