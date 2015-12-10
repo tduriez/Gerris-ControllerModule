@@ -33,7 +33,7 @@ class FunctionController(threading.Thread):
 				length = len(funcName)
 				s = toWrite.pack(result,funcName)
 				
-				print "Sending %i %s" % (result, funcName)
+				print "Sending %f %s" % (float(result), funcName)
 				print len(s)
 				self.returnFifo.write(s)
 			#except:

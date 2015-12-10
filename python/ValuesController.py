@@ -12,10 +12,15 @@ class ForceValue(object):
 		self.vm = vm
 		
 class LocationValue(object):
-	def __init__(self,value,position):
+	def __init__(self):
 		#self.varName = varName
-		self.value = value
-		self.position = position
+		self.varMap = {}
+	def addValue(self, varName, pos, value):
+		values = self.varMap.get(varName)
+		if values == None:
+			values = []
+			self.varMap[varName] = values
+		values.append((pos,value))
 		
 class ValueControl(object):
 	def __init__(self,time,step,data):
@@ -25,11 +30,11 @@ class ValueControl(object):
 		self.data = data
 
 class ValuesController(threading.Thread):
-	def __init__(self,fifo,forcesList,locationsMap,lock,length):
+	def __init__(self,fifo,forcesList,locationsList,lock,length):
 		super(ValuesController,self).__init__()
 		self.fifo = fifo
 		self.forcesList = forcesList
-		self.locationsMap = locationsMap
+		self.locationsList = locationsList
 		self.lock = lock
 		self.length = int(length)
 		
@@ -111,12 +116,26 @@ class ValuesController(threading.Thread):
 					print querySt[7]
 					self.lock.acquire()
 					# guardo valores en locationsMap
-					loc = LocationValue(querySt[4],querySt[5]) #O loc = LocationValue(querySt[4],(querySt[5],querySt[6],querySt[7]))
-					if not (querySt[3] in self.locationsMap):
-						self.locationsMap[querySt[3]] = collections.deque()
-					self.locationsMap[querySt[3]].append(loc)
-					if len(self.locationsMap[querySt[3]]) >= self.length:
-						self.locationsMap[querySt[3]].popleft()
+					locVal = None
+					for loc in self.locationsList:
+						if loc.step == querySt[2]:
+							locVal = loc
+							break
+
+					if (locVal == None):
+						loc = LocationValue()
+						locVal = ValueControl(querySt[1],querySt[2],loc)
+						self.locationsList.append(locVal)
+
+					locVal.data.addValue(querySt[7].rstrip(' \t\r\n\0'),(querySt[4],querySt[5],querySt[6]),querySt[3]) 
+						
+	
+					#loc = LocationValue(querySt[4],querySt[5]) #O loc = LocationValue(querySt[4],(querySt[5],querySt[6],querySt[7]))
+					#if not (querySt[3] in self.locationsMap):
+					#	self.locationsMap[querySt[3]] = collections.deque()
+					#self.locationsMap[querySt[3]].append(loc)
+					if len(self.locationsList) > self.length:
+						self.locationsList.popleft()
 					self.lock.release()
 					print "Location guardada"
 				else:

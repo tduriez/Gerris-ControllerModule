@@ -40,7 +40,7 @@ foo = imp.load_source('script', scriptPath)
 
 
 forcesValues = collections.deque()
-locationsValues = {}
+locationsValues = collections.deque()
 lock = threading.Lock()
 valuesThread = ValuesController.ValuesController(valuesFifo,\
 												forcesValues,\
