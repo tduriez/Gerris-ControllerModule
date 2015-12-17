@@ -6,10 +6,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <pythonCon.h>
+#include <glib.h>
 
-static int updated = 0; 
 static double actualValue = 0;
-static double sentValue = 0;
 static int callFd = 0;
 static int recvFd = 0;
 static int valuesFd = 0;
@@ -18,6 +17,7 @@ static char* recvfifo = "/tmp/recvfifo";
 static char* valuesfifo = "/tmp/valuesfifo";
 static int useCont = 0;
 static int debug = 0;
+static GHashTable* hash;
 
 int useController(int use){
 	useCont = use;
@@ -51,6 +51,7 @@ int initServer(){
 	callFd = open(callfifo, O_WRONLY); 
 	recvFd = open(recvfifo, O_RDONLY);
 	valuesFd = open(valuesfifo, O_WRONLY);
+	hash = g_hash_table_new(g_str_hash, g_str_equal);
 	}
 	return 0;
 }
@@ -63,11 +64,13 @@ int closeServer(){
 	unlink(callfifo);
 	unlink(recvfifo);
 	unlink(valuesfifo);
+	g_hash_table_destroy(hash);
 	}
 }
 
 double getValue(char* function){
-	if(updated){
+	char* updated = g_hash_table_lookup(hash,function);
+	if(updated == NULL){
 		if(debug)
 			printf("Calling %s function \n ", function);
 		CallController callController;
@@ -81,7 +84,7 @@ double getValue(char* function){
 		buf[39] = '\0';
 		ReturnController* returnValue = (ReturnController*) buf;
                 actualValue = returnValue->returnValue;
-                updated = 0;
+                g_hash_table_insert(hash,function,"1");
 		if(debug)
 			printf("Value got: %s %f \n",returnValue->funcName, actualValue);
 		fflush(stdout);
@@ -103,9 +106,7 @@ void sendForceValue(FttVector pf, FttVector vf, FttVector pm, FttVector vm, int 
 	write(valuesFd,&valueToSend,sizeof(valueToSend));
 	if(debug)
     		printf("Sending pf.x: %f pf.y: %f pf.z: %f vm.x: %f vm.y: %f vm.z: %f  time: %f step %d \n", valueToSend.data.forceValue.pf.x,valueToSend.data.forceValue.pf.y,valueToSend.data.forceValue.pf.z,valueToSend.data.forceValue.vm.x,valueToSend.data.forceValue.vm.y,valueToSend.data.forceValue.vm.z, valueToSend.time, valueToSend.step);
-
-	sentValue = pf.x;
-        updated = 1;
+	g_hash_table_remove_all (hash);
 }
 
 void sendLocationValue(char* var, double value, int step, double time, double x, double y, double z){
@@ -124,9 +125,7 @@ void sendLocationValue(char* var, double value, int step, double time, double x,
         write(valuesFd,&valueToSend,sizeof(valueToSend));
         if(debug)
 		printf("Sending var %s value: %f  time: %f step %d location (x,y,z): (%f, %f, %f) \n", valueToSend.data.locationValue.varName, valueToSend.data.locationValue.value, valueToSend.time, valueToSend.step,  valueToSend.data.locationValue.position[0],  valueToSend.data.locationValue.position[1],  valueToSend.data.locationValue.position[2]);
-
-        sentValue = value;
-        updated = 1;
+	g_hash_table_remove_all(hash);
 }
 
 

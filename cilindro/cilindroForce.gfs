@@ -14,7 +14,7 @@
   RefineSolid 9
   Solid   ((x)*(x) + y*y - R1*R1)
   SurfaceBc U Dirichlet  (x*x + y*y < R1*R1 ? 0.  : -y*omega * 
-  cos(controller("ffForce")*2*3.14159*fn*t)  )
+  cos(controller("bobo")*2*3.14159*fn*t)  )
   SurfaceBc V Dirichlet  (x*x + y*y < R1*R1 ?  0.  : 
   x*omega*cos(controller("ffForce")*2*3.14159*fn*t) ) 
    SourceDiffusion {} U 0.001
