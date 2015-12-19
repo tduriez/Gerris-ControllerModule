@@ -9,12 +9,12 @@
 		//static double ff=0.60;
   }
 
-  Time { end = 35. }	
+  Time { end = 3. }	
 
   RefineSolid 9
   Solid   ((x)*(x) + y*y - R1*R1)
   SurfaceBc U Dirichlet  (x*x + y*y < R1*R1 ? 0.  : -y*omega * 
-  cos(controller("bobo")*2*3.14159*fn*t)  )
+  cos(controller("ffForce")*2*3.14159*fn*t)  )
   SurfaceBc V Dirichlet  (x*x + y*y < R1*R1 ?  0.  : 
   x*omega*cos(controller("ffForce")*2*3.14159*fn*t) ) 
    SourceDiffusion {} U 0.001
@@ -32,6 +32,17 @@
   #Rlocal=(Velocity*Velocity*Velocity/(U*(U*dx("V")+V*dy("V"))-V*(U*dx("U")+V*dy("U"))))
   #phi=2*Velocity*Vorticity/ (Velocity*Velocity*Velocity/(U*(U*dx("V")+V*dy("V"))-V*(U*dx("U")+V*dy("U"))))
 #}
+
+  EventScript { start = 0.06 step = 0.1 } {
+    gnuplot << 'EOF'
+    set term postscript eps lw 3 solid 20
+    set output 'drag_time.eps'
+    set xlabel 'time'
+    set ylabel 'D'
+    plot [0.:3.][0:10]'forces.dat' u 1:($2+$5)/0.05 title "drag" w p ps 2 pt 9
+EOF
+  }
+
 
 }
 # 123
