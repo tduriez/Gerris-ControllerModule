@@ -25,7 +25,7 @@
   ControllerSolidForce { istep = 10 } 
   OutputSolidForce { istep = 10 } forces.dat
 
-  GfsOutputSimulation { start= 0.06 step = .234159  } cilindro_f060A400-%3.3f.gfs 
+  #GfsOutputSimulation { start= 0.06 step = .234159  } cilindro_f060A400-%3.3f.gfs 
  
   #Init { start = 0.06 step=0.234159} { 
   #vort=dx("V")-dy("U") R1=(U*(U*dx("V")+V*dy("V"))-V*(U*dx("U")+V*dy("U")))
@@ -35,11 +35,11 @@
 
   EventScript { start = 0.06 step = 0.1 } {
     gnuplot << 'EOF'
-    set term postscript eps lw 3 solid 20
+        set term postscript eps lw 3 solid 20
     set output 'drag_time.eps'
-    set xlabel 'time'
-    set ylabel 'D'
-    plot [0.:3.][0:10]'forces.dat' u 1:($2+$5)/0.05 title "drag" w p ps 2 pt 9
+        set xlabel 'time'
+        set ylabel 'D'
+        plot [0.:3.][0:10]'forces.dat' u 1:(sqrt($2*$2+$5*$5))/0.05 title "drag" w p ps 1 pt 1
 EOF
   }
 
