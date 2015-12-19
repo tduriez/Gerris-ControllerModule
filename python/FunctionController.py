@@ -1,6 +1,7 @@
 #!/usr/bin/python
 
 import threading
+import struct
 from struct import *
 
 # Thread for waiting for a call from gerris, execute the controller and return the result.
@@ -37,5 +38,5 @@ class FunctionController(threading.Thread):
 				if self.debug:
 					print "Sending %f %s" % (float(result), funcName)
 				self.returnFifo.write(s)
-			except:
+			except struct.error as e:
 				return	
