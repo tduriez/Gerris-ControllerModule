@@ -9,7 +9,7 @@ def ffForce(forcesList,locList):
 	if len(forcesList) > 0:
 		force = forcesList[0]
 		drag = force.data.pf[0]*force.data.pf[0] + force.data.vf[0]*force.data.pf[0]
-		if drag != lastDrag:
+		if lastFF != lastFF2:
 			ff = lastFF -  (drag - lastDrag) / (lastFF - lastFF2)
 			lastFF2 = lastFF
 			lastFF = ff
