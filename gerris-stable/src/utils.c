@@ -1359,8 +1359,6 @@ GfsVariable * gfs_function_get_variable (GfsFunction * f)
 {
   g_return_val_if_fail (f != NULL, NULL);
 
-  if(f->v)
-    printf("GET VARIABLE: %s",(f->v)->name );
   return f->v;
 }
 
