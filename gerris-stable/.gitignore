@@ -1,4 +1,9 @@
-**/**.deps
+config.*
+libtool
+src/gerris2D
+src/gerris3D
+**/*.deps
+**/.deps
 **/.libs
 **/*.Plo
 **/Makefile
