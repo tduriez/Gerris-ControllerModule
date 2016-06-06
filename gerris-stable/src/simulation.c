@@ -437,8 +437,6 @@ static void simulation_run (GfsSimulation * sim)
   GfsDomain * domain;
   GSList * i;
 
-  initServer();
-
   domain = GFS_DOMAIN (sim);
 
   p = gfs_variable_from_name (domain->variables, "P");
@@ -461,11 +459,6 @@ static void simulation_run (GfsSimulation * sim)
 
   i = domain->variables;
   while (i) {
-    GfsVariable *var = i->data;
-    int cant = var->component;
-    for (int j = 0; j < cant; j++)
-      printf(" %d ", var->vector[j]);
-    printf("\n");
     if (GFS_IS_VARIABLE_RESIDUAL (i->data))
       res = i->data;
     i = i->next;
@@ -1812,7 +1805,9 @@ void gfs_simulation_run (GfsSimulation * sim)
   g_timer_start (domain->clock);
   gfs_clock_start (domain->timer);
   gts_range_init (&domain->mpi_wait);
+  initServer();
   (* GFS_SIMULATION_CLASS (GTS_OBJECT (sim)->klass)->run) (sim);
+  closeServer();
   gfs_clock_stop (domain->timer);
   g_timer_stop (domain->clock);
   g_log_remove_handler ("Gfs", id);

@@ -19,6 +19,11 @@ int useDebug(int deb);
 int initServer();
 
 /**
+* Finalize server. Destroy pipes and close file descriptors.
+*/
+int closeServer();
+
+/**
 * Get a controlled value. Called by the C code compiled dinamically from the simulation file.
 * Calls python controller.
 */
