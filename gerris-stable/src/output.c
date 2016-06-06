@@ -35,10 +35,6 @@
 #include "unstructured.h"
 #include "init.h"
 
-#include <sys/types.h>
-#include <sys/ipc.h>
-#include <sys/shm.h>
-
 #include "pythonCon.h"
 
 /**
@@ -904,7 +900,7 @@ GfsOutputClass * gfs_output_balance_class (void)
 /** \endobject{GfsOutputBalance} */
 
 /**
- * Forces and moments on the embedded solid boundaries.
+ * orces and moments on the embedded solid boundaries.
  * \beginobject{GfsOutputSolidForce}
  */
 
@@ -1288,8 +1284,7 @@ static gboolean gfs_output_location_event (GfsEvent * event,
 							  gfs_interpolate (cell, pm, v) :
 							  GFS_VALUE (cell, v)));
 	  
-
-	    i = i->next;
+      i = i->next;
 	}
 	fputc ('\n', fpp);
       }

@@ -20,7 +20,6 @@
  * \brief GfsSimulation, GfsPoisson, GfsAdvection models.
  */
 
-#include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
 #include <gmodule.h>

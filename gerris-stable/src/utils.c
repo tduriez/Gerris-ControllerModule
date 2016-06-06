@@ -20,7 +20,6 @@
  * \brief GfsFunction and various utility functions.
  */
 
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdarg.h>
@@ -709,7 +708,7 @@ static GModule * compile (GtsFile * fp, const gchar * dirname, const gchar * fin
   }
 #if 1
   gchar * cleanup = g_strconcat ("rm -r -f ", dirname, NULL);
-  gint status1 = 0; //system (cleanup);
+  gint status1 = system (cleanup);
   g_free (cleanup);
   if (status1 == -1 || WEXITSTATUS (status1) != 0)
     g_warning ("error when cleaning up %s", dirname);
@@ -1216,7 +1215,6 @@ gchar * gfs_function_description (GfsFunction * f,
 
 static gdouble adimensional_value (GfsFunction * f, gdouble v)
 {
-  //printf("Adimensional value \n");
   gdouble L;
   if (v == GFS_NODATA || f->units == 0. || 
       (L = gfs_object_simulation (f)->physical_params.L) == 1.)
@@ -1310,8 +1308,7 @@ void gfs_function_set_constant_value (GfsFunction * f, gdouble val)
 {
   g_return_if_fail (f != NULL);
   g_return_if_fail (!f->f && !f->s && !f->v && !f->dv);
-  
-  //printf("SET CONSTANT VALUE %f", val);
+
   f->val = val;
   f->constant = TRUE;
 }
@@ -1328,7 +1325,6 @@ gdouble gfs_function_get_constant_value (GfsFunction * f)
   g_return_val_if_fail (f != NULL, G_MAXDOUBLE);
   g_assert (!pending_functions);
 
-  //printf("GET CONSTANT VALUE");
   if (f->f || f->s || f->v || f->dv)
     return G_MAXDOUBLE;
   else
@@ -1344,7 +1340,7 @@ gdouble gfs_function_get_constant_value (GfsFunction * f)
 gboolean gfs_function_is_constant (const GfsFunction * f)
 {
   g_return_val_if_fail (f != NULL, FALSE);
-  //printf("GET CONSTANT");
+
   return f->constant;
 }
 

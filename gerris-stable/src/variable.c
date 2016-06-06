@@ -1615,7 +1615,6 @@ static gdouble constant_func (FttCell * cell, FttCellFace * face, GfsDomain * do
 
 static void gfs_constant_read (GtsObject ** o, GtsFile * fp)
 {
-  printf("GFS CONSTANT READ");
   (* GTS_OBJECT_CLASS (gfs_constant_class ())->parent_class->read) (o, fp);
   if (fp->type == GTS_ERROR)
     return;
