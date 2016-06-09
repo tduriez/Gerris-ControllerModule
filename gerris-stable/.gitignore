@@ -1,3 +1,9 @@
+ltmain.sh
+configure
+aclocal.m4
+autom4te.cache
+test-driver
+test/*.sh
 config.*
 libtool
 src/gerris2D
@@ -7,6 +13,7 @@ src/gerris3D
 **/.libs
 **/*.Plo
 **/Makefile
+**/Makefile.in
 doc/autoclass
 doc/examples
 doc/tutorial
