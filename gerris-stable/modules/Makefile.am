@@ -63,7 +63,9 @@ pkglib_LTLIBRARIES = \
 	$(AGMG) \
 	$(ODE) \
         $(BUBBLES) \
-	$(FFT)
+	$(FFT) \
+	libcontroller3D.la \
+	libcontroller2D.la
 
 bin_PROGRAMS = \
 	rsurface2kdt
@@ -216,3 +218,10 @@ libculvert2D_la_DEPENDENCIES = culvert/libboyd87.la
 liblayered2D_la_SOURCES = layered.c
 liblayered2D_la_CFLAGS = $(AM_CFLAGS) -DFTT_2D=1
 liblayered2D_la_LIBADD = $(GFS2D_LIBS)
+
+libcontroller3D_la_SOURCES = controller.c
+libcontroller3D_la_CFLAGS = $(AM_CFLAGS)
+libcontroller3D_la_LIBADD = $(GFS3D_LIBS)
+libcontroller2D_la_SOURCES = controller.c
+libcontroller2D_la_CFLAGS = $(AM_CFLAGS) -DFTT_2D=1
+libcontroller2D_la_LIBADD = $(GFS2D_LIBS)
