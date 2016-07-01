@@ -11,6 +11,11 @@
 
 #include "pythonCon.h"
 
+#ifdef HAVE_MPI
+# include <mpi.h>
+#endif /* HAVE_MPI */
+
+
 /**
  * Forces and moments on the embedded solid boundaries.
  * \beginobject{GfsController}
@@ -83,6 +88,14 @@ static gboolean gfs_controller_solid_force_event (GfsEvent * event,
     gdouble L = sim->physical_params.L, Ln = pow (L, 3. + FTT_DIMENSION - 2.);
 
     gfs_domain_solid_force (domain, &pf, &vf, &pm, &vm, GFS_CONTROLLER_SOLID_FORCE (event)->weight);
+
+#ifdef HAVE_MPI
+    int world_rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
+    g_log (G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "[%d] Sending information at time step: %d", world_rank, sim->time.i);
+#else
+    g_log (G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "Sending information at time step: %d", sim->time.i);
+#endif
     sendForceValue(pf,vf,pm,vm, sim->time.i, sim->time.t);
      
     return TRUE;

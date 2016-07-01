@@ -67,9 +67,22 @@
 #include "particle.h"
 #include "cartesian.h"
 
+#ifndef G_DEBUG
+ #define G_DEBUG "info"
+ #pragma message "warning: No G_DEBUG definition detected during compilation.\n\nDefault value set to: info. \n" \
+    "You can change it by adding the proper compilation flag. i.e.: \n\n" \
+    "make CFLAGS='-ggdb -Og -DG_DEBUG=\\\"debug\\\"'"
+#endif
+
 #ifdef HAVE_MPI
-# include <mpi.h>
+ #include <mpi.h>
 #endif /* HAVE_MPI */
+
+static void gfs_nolog (const gchar * log_domain,
+		     GLogLevelFlags log_level,
+		     const gchar * message)
+{
+}
 
 static void gfs_log (const gchar * log_domain,
 		     GLogLevelFlags log_level,
@@ -108,7 +121,7 @@ static void gfs_log (const gchar * log_domain,
   default:
     g_assert_not_reached ();
   }
-  fprintf (stderr, "\n%s-%s **: %s%s\n\n", 
+  fprintf (stderr, "%s-%s **: %s%s\n", 
 	   log_domain, stype[type], pe, message);
   g_free (pe);
 }
@@ -423,16 +436,28 @@ void gfs_init (int * argc, char *** argv)
   feenableexcept (EXCEPTIONS);
 #endif /* EXCEPTIONS */
 
+  GLogLevelFlags flags = 0;
+  if (strstr(G_DEBUG, "all"))
+      flags |= G_LOG_LEVEL_MASK;
+  if (strstr(G_DEBUG, "debug"))
+      flags |= G_LOG_LEVEL_DEBUG;
+  if (strstr(G_DEBUG, "info"))
+      flags |= G_LOG_LEVEL_INFO;
+  if (strstr(G_DEBUG, "message"))
+      flags |= G_LOG_LEVEL_MESSAGE;
+  if (strstr(G_DEBUG, "warning"))
+      flags |= G_LOG_LEVEL_WARNING;
+  if (strstr(G_DEBUG, "error"))
+      flags |= G_LOG_LEVEL_ERROR;
+  if (strstr(G_DEBUG, "critical"))
+      flags |= G_LOG_LEVEL_CRITICAL;
+
   g_log_set_handler (G_LOG_DOMAIN,
-		     G_LOG_LEVEL_ERROR |
-		     G_LOG_LEVEL_CRITICAL |
-		     G_LOG_LEVEL_WARNING |
-		     G_LOG_LEVEL_MESSAGE |
-		     G_LOG_LEVEL_INFO |
-		     G_LOG_LEVEL_DEBUG |
-		     G_LOG_FLAG_FATAL |
-		     G_LOG_FLAG_RECURSION,
-		     (GLogFunc) gfs_log, NULL);
+		     G_LOG_LEVEL_MASK,
+		     (GLogFunc) gfs_nolog, NULL);
+
+  g_log_set_handler (G_LOG_DOMAIN,
+		     flags, (GLogFunc) gfs_log, NULL);
 
   /* Instantiates classes before reading any domain or simulation file */
   gfs_classes ();

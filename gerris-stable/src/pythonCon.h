@@ -2,6 +2,25 @@
 #define __PYTHON_CONTROLLER_CONECTION_H__
 #include "ftt.h"
 #include <stdint.h>
+#include <glib.h>
+
+typedef struct {
+  int worldRank;
+  char* sendFifoName;
+  char* recvFifoName;
+  char* valuesFifoName;
+  int sendFD;
+  int recvFD;
+  int valuesFD;
+  GHashTable* cache;
+  pid_t pythonControllerPID;
+} py_connector_t;
+
+
+void py_connector_init(py_connector_t* self);
+void py_connector_destroy(py_connector_t* self);
+double py_connector_get_value(py_connector_t* self, char* function);
+void py_connector_send_force(py_connector_t* self, FttVector pf, FttVector vf, FttVector pm, FttVector vm, int step, double time);
 
 /**
 * Set gerris to use python controller and create pipes.
