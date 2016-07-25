@@ -20,6 +20,7 @@ static int useCont = 0;
 static int debug = 0;
 static py_connector_t connector;
 
+
 static void py_connector_init_fifos(py_connector_t* self);
 static void py_connector_init_controller(py_connector_t* self);
 
@@ -35,6 +36,7 @@ int useDebug(int deb){
 
 void py_connector_init(py_connector_t* self) {
     self->worldRank = 0;
+    self->sim = NULL;
 //#ifdef HAVE_MPI
     int world_rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
@@ -57,24 +59,31 @@ void py_connector_init(py_connector_t* self) {
     py_connector_init_fifos(self);
 }
 
+void py_connector_init_simulation(py_connector_t* self, GfsSimulation* sim) {
+    if (! self->sim) {
+        g_log (G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "step=%d - t=%.3f - Defining Simulation for py_connector", sim->time.i, sim->time.t);
+        self->sim = sim;
+    }
+}
 static void py_connector_init_controller(py_connector_t* self) {
-    g_log (G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "[%d] Starting Python controller at '%s'...", self->worldRank, PYTHON_CONTROLLER_PATH);
+    g_log (G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "Starting Python controller at '%s'...", PYTHON_CONTROLLER_PATH);
     pid_t pid = fork();
     if (pid) {
         self->pythonControllerPID = pid;
-        g_log (G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "[%d] Python controller started.", self->worldRank);
+        g_log (G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "Python controller started.");
     }
     else {
-        char* worldRankStr[3];
+        char worldRankStr[3];
         snprintf(worldRankStr, 3, "%02d", self->worldRank);
-        execl(PYTHON_CONTROLLER_PATH, "main.py", "-f","python/module/script.py","-n","100","--mpiproc", worldRankStr, NULL);
-        g_log (G_LOG_DOMAIN, G_LOG_LEVEL_ERROR, "[%d] Python controller couldn't start propertly.", self->worldRank);
+        execl(PYTHON_CONTROLLER_PATH, "main.py", "--script","python/module/script.py","--samples","5","--mpiproc", worldRankStr,
+              "--requestfifo", self->sendFifoName, "--returnfifo", self->recvFifoName, "--samplesfifo", self->valuesFifoName, NULL);
+        g_log (G_LOG_DOMAIN, G_LOG_LEVEL_ERROR, "Python controller couldn't start propertly.");
         exit(EXIT_FAILURE);
     }
 }
 
 static void py_connector_init_fifos(py_connector_t* self) {
-    g_log (G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "[%d] Creating FIFOs: %s, %s", self->worldRank, self->sendFifoName, self->recvFifoName);
+    g_log (G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "Creating FIFOs: %s, %s", self->sendFifoName, self->recvFifoName);
     struct stat st;
     if (stat(self->sendFifoName, &st) == 0)
         unlink(self->sendFifoName);
@@ -87,13 +96,13 @@ static void py_connector_init_fifos(py_connector_t* self) {
     mkfifo(self->recvFifoName, 0666);
     mkfifo(self->valuesFifoName, 0666);
 
-    g_log (G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "[%d] FIFOs created. Opening FDs", self->worldRank);
+    g_log (G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "FIFOs created. Opening FDs");
     self->sendFD = open(self->sendFifoName, O_WRONLY);
-    g_log (G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "[%d] FIFO created at %s.", self->worldRank, self->sendFifoName);
+    g_log (G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "FIFO created at %s.", self->sendFifoName);
     self->recvFD = open(self->recvFifoName, O_RDONLY);
-    g_log (G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "[%d] FIFO created at %s.", self->worldRank, self->recvFifoName);
+    g_log (G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "FIFO created at %s.", self->recvFifoName);
     self->valuesFD = open(self->valuesFifoName, O_WRONLY);
-    g_log (G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "[%d] FIFO created at %s.", self->worldRank, self->valuesFifoName);
+    g_log (G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "FIFO created at %s.", self->valuesFifoName);
 }
 
 static void py_connector_clear_cache(py_connector_t* self) {
@@ -128,18 +137,26 @@ double py_connector_get_value(py_connector_t* self, char* function) {
 		callController.type = 0;
 		strncpy(callController.funcName, function, 31);
 		callController.funcName[31] = '\0';
-        write(self->sendFD, (void*)&callController, sizeof(callController));
+        size_t bytesToSend = sizeof(callController);
+        int sentBytes = write(self->sendFD, (void*)&callController, bytesToSend);
+        if (sentBytes != bytesToSend)
+             g_log (G_LOG_DOMAIN, G_LOG_LEVEL_ERROR,"Fail on py_connector_get_value - SentBytes=%d BytesToSend=%d", sentBytes, bytesToSend);
 		char buf[40];
 		int bytes = read(self->recvFD, buf, 40);
 		buf[39] = '\0';
 		ReturnController* returnValue = (ReturnController*) buf;
         value = returnValue->returnValue;
-        g_log (G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG,"py_connector_get_value(%s): %f", function, value);
         gchar* newCachedValue = g_strdup_printf("%f", value);
         g_hash_table_insert(self->cache, function, newCachedValue);
+        if (!self->sim)
+            g_log (G_LOG_DOMAIN, G_LOG_LEVEL_WARNING,"No simulation defined before calling py_connector_get_value. System will resume and use controller results anyway.");
+        gint step = self->sim ? self->sim->time.i : 0;
+        double time = self->sim ? self->sim->time.t : 0;
+        g_log (G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG,"step=%d t=%.3f py_connector_get_value - %s=%f", step, time, function, value);
 	}
     else
         value = atof(cachedValue);
+
     return value;
 }
 
@@ -152,22 +169,47 @@ void py_connector_send_force(py_connector_t* self, FttVector pf, FttVector vf, F
 	valueToSend.data.forceValue.vf = vf;
 	valueToSend.data.forceValue.pm = pm;
 	valueToSend.data.forceValue.vm = vm;
-	write(self->valuesFD,&valueToSend,sizeof(valueToSend));
-
-    g_log (G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "Sending step= %d - time= %f - pf=(%.3f,%.3f,%.3f), vm=(%.3f,%.3f,%.3f)", 
+    int bytesToSend = sizeof(valueToSend);
+	int sentBytes = write(self->valuesFD,&valueToSend,bytesToSend);
+    if (sentBytes != bytesToSend)
+        g_log (G_LOG_DOMAIN, G_LOG_LEVEL_ERROR,"Fail on py_connector_send_force - SentBytes=%d BytesToSend=%d", sentBytes, bytesToSend);
+    g_log (G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "step=%d - t=%.3f - Sending pf=(%.3f,%.3f,%.3f), vm=(%.3f,%.3f,%.3f)", 
                                             valueToSend.step, valueToSend.time,
                                             valueToSend.data.forceValue.pf.x,valueToSend.data.forceValue.pf.y,valueToSend.data.forceValue.pf.z,
                                             valueToSend.data.forceValue.vm.x,valueToSend.data.forceValue.vm.y,valueToSend.data.forceValue.vm.z);
     py_connector_clear_cache(self);
 }
 
+void py_connector_send_location(py_connector_t* self, char* var, double value, FttVector p, int step, double time){
+    ValueController valueToSend;
+    // LOCATION TYPE
+    valueToSend.type = 1;
+    valueToSend.time = time;
+    valueToSend.step = step;
+    strncpy(valueToSend.data.locationValue.varName, var, 63);
+    valueToSend.data.locationValue.varName[63] = '\0';
+    valueToSend.data.locationValue.value = value;
+    valueToSend.data.locationValue.position[0] = p.x;
+    valueToSend.data.locationValue.position[1] = p.y;
+    valueToSend.data.locationValue.position[2] = p.z;
+    // Send it through FIFO.
+    int bytesToSend = sizeof(valueToSend);
+	int sentBytes = write(self->valuesFD,&valueToSend,bytesToSend);
+    if (sentBytes != bytesToSend)
+        g_log (G_LOG_DOMAIN, G_LOG_LEVEL_ERROR,"Fail on py_connector_send_location - SentBytes=%d BytesToSend=%d", sentBytes, bytesToSend);
+    g_log (G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "step=%d - t=%.3f - Sending %s=%f - (x,y,z)=(%f, %f, %f)", step, time, var, value, p.x, p.y, p.z);
+    g_hash_table_remove_all(connector.cache);
+}
 
 int initServer(){
     if (useCont)
         py_connector_init(&connector);
-    g_log (G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "Init Server");
 
     return 0;
+}
+void defineSimServer(GfsSimulation* sim){
+    if (useCont)
+        py_connector_init_simulation(&connector, sim);
 }
 
 int closeServer(){
@@ -177,7 +219,7 @@ int closeServer(){
     return 0;
 }
 
-double getValue(char* function){
+double controller(char* function){
     if(useCont)
         return py_connector_get_value(&connector, function);
     else
@@ -189,21 +231,8 @@ void sendForceValue(FttVector pf, FttVector vf, FttVector pm, FttVector vm, int 
         py_connector_send_force(&connector, pf, vf, pm, vm, step, time);
 }
 
-void sendLocationValue(char* var, double value, int step, double time, double x, double y, double z){
-    ValueController valueToSend;
-    // LOCATION TYPE
-    valueToSend.type = 1;
-    valueToSend.time = time;
-    valueToSend.step = step;
-    strncpy(valueToSend.data.locationValue.varName, var, 63);
-    valueToSend.data.locationValue.varName[63] = '\0';
-    valueToSend.data.locationValue.value = value;
-    valueToSend.data.locationValue.position[0] = x;
-    valueToSend.data.locationValue.position[1] = y;
-    valueToSend.data.locationValue.position[2] = z;
-    // Send it through FIFO.
-    exit(-1); //fix this write(self->valuesFD,&valueToSend,sizeof(valueToSend));
-    g_log (G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "Sending var %s value: %f  time: %f step %d location (x,y,z): (%f, %f, %f)", valueToSend.data.locationValue.varName, valueToSend.data.locationValue.value, valueToSend.time, valueToSend.step,  valueToSend.data.locationValue.position[0],  valueToSend.data.locationValue.position[1],  valueToSend.data.locationValue.position[2]);
-    g_hash_table_remove_all(connector.cache);
+void sendLocationValue(char* var, double value, FttVector p, int step, double time){
+    if (useCont)
+        py_connector_send_location(&connector, var, value, p, step, time);
 }
 

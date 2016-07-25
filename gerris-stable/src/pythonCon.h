@@ -3,6 +3,7 @@
 #include "ftt.h"
 #include <stdint.h>
 #include <glib.h>
+#include "simulation.h"
 
 typedef struct {
   int worldRank;
@@ -14,13 +15,16 @@ typedef struct {
   int valuesFD;
   GHashTable* cache;
   pid_t pythonControllerPID;
+  GfsSimulation * sim;
 } py_connector_t;
 
 
 void py_connector_init(py_connector_t* self);
+void py_connector_init_simulation(py_connector_t* self, GfsSimulation* sim);
 void py_connector_destroy(py_connector_t* self);
 double py_connector_get_value(py_connector_t* self, char* function);
 void py_connector_send_force(py_connector_t* self, FttVector pf, FttVector vf, FttVector pm, FttVector vm, int step, double time);
+void py_connector_send_location(py_connector_t* self, char* var, double value, FttVector p, int step, double time);
 
 /**
 * Set gerris to use python controller and create pipes.
@@ -38,6 +42,11 @@ int useDebug(int deb);
 int initServer();
 
 /**
+* Defines the current simulation for internal usage.
+*/
+void defineSimServer(GfsSimulation* sim);
+
+/**
 * Finalize server. Destroy pipes and close file descriptors.
 */
 int closeServer();
@@ -46,7 +55,7 @@ int closeServer();
 * Get a controlled value. Called by the C code compiled dinamically from the simulation file.
 * Calls python controller.
 */
-double getValue(char* function);
+double controller(char* function);
 
 /**
 * Send to python Force values read by ControllerSolidForce
@@ -56,7 +65,7 @@ void sendForceValue(FttVector pf, FttVector vf, FttVector pm, FttVector vm, int 
 /**
 * Send to python Location values read by ControllerLocation
 */
-void sendLocationValue(char* var, double value, int step, double time, double x, double y, double z);
+void sendLocationValue(char* var, double value, FttVector p, int step, double time);
 
 typedef struct _ValueController		ValueController;
 typedef struct _ForceValue	        ForceValue;

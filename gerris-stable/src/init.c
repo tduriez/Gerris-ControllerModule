@@ -105,7 +105,7 @@ static void gfs_log (const gchar * log_domain,
     char name[MPI_MAX_PROCESSOR_NAME];
     int length;
     MPI_Get_processor_name (name, &length);
-    pe = g_strdup_printf ("PE %d (%s): ", rank, name);
+    pe = g_strdup_printf ("PE=%d (%s): ", rank, name);
   }
   else
 #endif /* HAVE_MPI */
@@ -121,8 +121,13 @@ static void gfs_log (const gchar * log_domain,
   default:
     g_assert_not_reached ();
   }
-  fprintf (stderr, "%s-%s **: %s%s\n", 
+
+  GDateTime* now = g_date_time_new_now_local();
+  gchar* nowStr = g_date_time_format(now, "%Y-%m-%d %H:%M:%S");
+  fprintf (stderr, "%s %s %s **: %s%s\n", nowStr,
 	   log_domain, stype[type], pe, message);
+  g_free (nowStr);
+  g_date_time_unref(now);
   g_free (pe);
 }
 
@@ -392,6 +397,34 @@ void gfs_enable_floating_point_exceptions (void)
 #endif /* !EXCEPTIONS */
 }
 
+void gfs_init_log (const gchar *logDomain, const gchar* logLevels)
+{
+  GLogLevelFlags flags = 0;
+  if (strstr(logLevels, "all"))
+      flags |= G_LOG_LEVEL_MASK;
+  if (strstr(logLevels, "debug"))
+      flags |= G_LOG_LEVEL_DEBUG;
+  if (strstr(logLevels, "info"))
+      flags |= G_LOG_LEVEL_INFO;
+  if (strstr(logLevels, "message"))
+      flags |= G_LOG_LEVEL_MESSAGE;
+  if (strstr(logLevels, "warning"))
+      flags |= G_LOG_LEVEL_WARNING;
+  if (strstr(logLevels, "error"))
+      flags |= G_LOG_LEVEL_ERROR;
+  if (strstr(logLevels, "critical"))
+      flags |= G_LOG_LEVEL_CRITICAL;
+
+  //set log handlers for all domains using the configured log level.
+  g_log_set_handler (NULL,
+		     G_LOG_LEVEL_MASK,
+		     (GLogFunc) gfs_nolog, NULL);
+
+  g_log_set_handler (logDomain,
+		     flags, (GLogFunc) gfs_log, NULL);
+}
+
+
 /**
  * gfs_init:
  * @argc: a pointer on the number of command line arguments passed to
@@ -436,28 +469,7 @@ void gfs_init (int * argc, char *** argv)
   feenableexcept (EXCEPTIONS);
 #endif /* EXCEPTIONS */
 
-  GLogLevelFlags flags = 0;
-  if (strstr(G_DEBUG, "all"))
-      flags |= G_LOG_LEVEL_MASK;
-  if (strstr(G_DEBUG, "debug"))
-      flags |= G_LOG_LEVEL_DEBUG;
-  if (strstr(G_DEBUG, "info"))
-      flags |= G_LOG_LEVEL_INFO;
-  if (strstr(G_DEBUG, "message"))
-      flags |= G_LOG_LEVEL_MESSAGE;
-  if (strstr(G_DEBUG, "warning"))
-      flags |= G_LOG_LEVEL_WARNING;
-  if (strstr(G_DEBUG, "error"))
-      flags |= G_LOG_LEVEL_ERROR;
-  if (strstr(G_DEBUG, "critical"))
-      flags |= G_LOG_LEVEL_CRITICAL;
-
-  g_log_set_handler (G_LOG_DOMAIN,
-		     G_LOG_LEVEL_MASK,
-		     (GLogFunc) gfs_nolog, NULL);
-
-  g_log_set_handler (G_LOG_DOMAIN,
-		     flags, (GLogFunc) gfs_log, NULL);
+  gfs_init_log(G_LOG_DOMAIN, G_DEBUG);
 
   /* Instantiates classes before reading any domain or simulation file */
   gfs_classes ();

@@ -27,6 +27,8 @@ extern "C" {
 #endif /* __cplusplus */
 
 GtsObjectClass ** gfs_classes             (void);
+void              gfs_init_log (const gchar *logDomain,
+                                const gchar *logLevels);
 void              gfs_init                (int * argc, 
 					   char *** argv);
 void gfs_catch_floating_point_exceptions   (void);
