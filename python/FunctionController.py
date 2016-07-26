@@ -2,11 +2,12 @@
 
 import threading
 import struct
+import logging
 from struct import *
 
 # Thread for waiting for a call from gerris, execute the controller and return the result.
 class FunctionController(threading.Thread):
-	def __init__(self,callFifo,returnFifo,src,lock,forcesList,locMap, debug):
+	def __init__(self,callFifo,returnFifo,src,lock,forcesList,locMap):
 		super(FunctionController,self).__init__()
 		self.callFifo = callFifo
 		self.returnFifo = returnFifo
@@ -14,7 +15,6 @@ class FunctionController(threading.Thread):
 		self.lock = lock
 		self.forcesList = forcesList
 		self.locMap = locMap
-		self.debug = debug
 		
 	def run(self):
 		toRead = Struct('i32s')
@@ -26,17 +26,20 @@ class FunctionController(threading.Thread):
 				querySt = toRead.unpack(query)
 				queryType = querySt[0] 
 				funcName = querySt[1].rstrip(' \t\r\n\0')
-				if self.debug:
-					print "Called Func Name %s" % funcName
-				funcion = getattr(self.src, str(funcName))
+				logging.debug("Calling controller - Function=%s" % funcName)
+				try:
+					func = getattr(self.src, str(funcName))
+				except AttributeError:
+					logging.error("Function \"%s\" not found at \"%s\"." % (funcName, self.src))
+					raise
 				self.lock.acquire()
-				result = funcion(self.forcesList,self.locMap)
+				result = func(self.forcesList,self.locMap)
 				self.lock.release()
 				length = len(funcName)
 				s = toWrite.pack(result,funcName)
 				
-				if self.debug:
-					print "Sending %f %s" % (float(result), funcName)
+				logging.debug("Returning controller result - %s=%f" % (funcName, result))
 				self.returnFifo.write(s)
 			except struct.error as e:
-				return	
+				logging.warning("Error detected in send-receive information. The control loop will resume despite that.")
+				return

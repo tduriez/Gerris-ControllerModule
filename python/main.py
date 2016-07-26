@@ -2,9 +2,9 @@
 
 import os
 import sys, getopt
-#import struct
 import imp
 import threading
+import logging
 import collections
 import FunctionController
 import ValuesController
@@ -13,34 +13,46 @@ import ValuesController
 #one for receive command, the other for send command
 #one to receive values
 
-scriptPath = "./"
+scriptPath = "./module"
 cant = 1
-debug = False
+mpiproc = 0
 
-# Get arguments.
+callFifoFilepath = ''
+returnFifoFilepath = ''
+valuesFifoFilepath = ''
+
+
 try:
-	opts, args = getopt.getopt(sys.argv[1:],"f:n:z")
+	opts, args = getopt.getopt(sys.argv[1:],'', ['script=', 'samples=','mpiproc=', 'requestfifo=', 'returnfifo=', 'samplesfifo='])
 except getopt.GetoptError:
-	print "main.py -f <pathToFileScript> -n <numberOfPreviousValues>"
+	sys.stderr.write("Python **: main.py --script <scriptFilepath> --samples <numberOfSamplesInControllingWindow> --mpiproc <processId> --requestfifo <filepath> --returnfifo <filepath> --samplesfifo <filepath>")
 	sys.exit(1)
-if not opts:
-	print "Error: Required arguments: -f -n"
+if not opts or len(opts) < 6:
+	sys.stderr.write("Python **: Error invoking main.py. Required arguments: --script --samples --mpiproc --requestfifo --returnfifo --samplesfifo")
 	sys.exit(2)
 for opt, arg in opts:
-	if opt == '-f':
+	if opt == '--script':
 		scriptPath = arg
-	elif opt == '-n':
-		cant = arg
-	elif opt == '-z':
-		debug = True
+	elif opt == '--samples':
+		cant = int(arg)
+	elif opt == '--mpiproc':
+		mpiproc = int(arg)
+	elif opt == '--requestfifo':
+		callFifoFilepath = arg
+	elif opt == '--returnfifo':
+		returnFifoFilepath = arg
+	elif opt == '--samplesfifo':
+		valuesFifoFilepath = arg
 
-# Open fifos.
-callPath = "/tmp/callfifo"
-recvPath = "/tmp/recvfifo"
-valuesPath = "/tmp/valuesfifo"
-callFifo = open(callPath, 'r')
-returnFifo = open(recvPath, 'w',0)
-valuesFifo = open(valuesPath, 'r')
+
+logging.basicConfig(format='%(asctime)s Python %(levelname)s **: PE=' + str(mpiproc) + ' - %(message)s', level=logging.DEBUG)
+
+logging.info("Opening Gerris2Python FIFO at %s" % callFifoFilepath)
+callFifo = open(callFifoFilepath, 'r')
+logging.info("Opening Python2Gerris FIFO at %s" % returnFifoFilepath)
+returnFifo = open(returnFifoFilepath, 'w',0)
+logging.info("Opening Gerris2Python FIFO for actuation values at %s" % valuesFifoFilepath)
+valuesFifo = open(valuesFifoFilepath, 'r')
 value = 0
 
 # Load functions defined by user.
@@ -56,14 +68,14 @@ valuesThread = ValuesController.ValuesController(valuesFifo,\
 		forcesValues,\
 		locationsValues,\
 		lock,\
-		cant, debug)
+		cant)
 												
 callThread = FunctionController.FunctionController(callFifo,\
 						returnFifo,\
 						foo,\
 						lock,\
 						forcesValues,\
-						locationsValues, debug)
+						locationsValues)
 
 valuesThread.start()
 callThread.start()
@@ -71,7 +83,9 @@ callThread.start()
 valuesThread.join()
 callThread.join()
 
-print "Termino"
+logging.info("Closing FIFOS")
 callFifo.close()
 returnFifo.close()
 valuesFifo.close()
+logging.info("Python server finished")
+
