@@ -56,8 +56,7 @@ GFS_HDS = \
 	metric.h \
 	particle.h \
 	version.h \
-        myFunction.h \
-        pythonCon.h 
+	pythonCon.h
 
 pkginclude_HEADERS = \
 	$(GFS_HDS) \

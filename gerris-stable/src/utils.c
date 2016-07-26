@@ -430,7 +430,7 @@ static void append_pending_function (const GfsFunction * f, guint line, guint id
 				      "#include <gfs.h>\n"
 				      "#include <gerris/spatial.h>\n"
 				      "#include <gerris/function.h>\n"
-                                      "#include <gerris/myFunction.h>\n"
+				      "#include <gerris/pythonCon.h>\n"
 				      "typedef double (* Func) (const FttCell * cell,\n"
 				      "                         const FttCellFace * face,\n"
 				      "                         GfsSimulation * sim,\n"
