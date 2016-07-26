@@ -8,7 +8,7 @@
 #include "controller.h"
 #include "output.h"
 #include "init.h"
-
+#include "config.h"
 #include "pythonCon.h"
 
 #ifdef HAVE_MPI
@@ -83,19 +83,14 @@ static gboolean gfs_controller_solid_force_event (GfsEvent * event,
   if ((* GFS_EVENT_CLASS (GTS_OBJECT_CLASS (gfs_controller_solid_force_class ())->parent_class)->event)
       (event, sim) &&
       sim->advection_params.dt > 0.) {
+    defineSimServer(sim);
     GfsDomain * domain = GFS_DOMAIN (sim);
     FttVector pf, vf, pm, vm;
     gdouble L = sim->physical_params.L, Ln = pow (L, 3. + FTT_DIMENSION - 2.);
 
     gfs_domain_solid_force (domain, &pf, &vf, &pm, &vm, GFS_CONTROLLER_SOLID_FORCE (event)->weight);
 
-#ifdef HAVE_MPI
-    int world_rank;
-    MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
-    g_log (G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "[%d] Sending information at time step: %d", world_rank, sim->time.i);
-#else
-    g_log (G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "Sending information at time step: %d", sim->time.i);
-#endif
+    g_log (G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "step=%d t=%.3f - Sending force information", sim->time.i, sim->time.t);
     sendForceValue(pf,vf,pm,vm, sim->time.i, sim->time.t);
      
     return TRUE;
@@ -274,38 +269,96 @@ static gboolean gfs_controller_location_event (GfsEvent * event,
 {
    if ((* GFS_EVENT_CLASS (GTS_OBJECT_CLASS (gfs_controller_location_class ())->parent_class)->event)
       (event, sim)) {
+    defineSimServer(sim);
     GfsDomain * domain = GFS_DOMAIN (sim);
     GfsControllerLocation * location = GFS_CONTROLLER_LOCATION (event);
     guint i;
 
-    gchar * pformat = g_strdup_printf ("%s %s %s %s", 
-				       location->precision, location->precision, 
-				       location->precision, location->precision);
-    gchar * vformat = g_strdup_printf (" %s", location->precision);
-    for (i = 0; i < location->p->len; i++) {
-      FttVector p = g_array_index (location->p, FttVector, i), pm = p;
-      gfs_simulation_map (sim, &pm);
-      FttCell * cell = gfs_domain_locate (domain, pm, -1, NULL);
-      
-      if (cell != NULL) {
-	GSList * i = domain->variables;
-	
-	while (i) {
-	  GfsVariable * v = i->data;
-	  if (v->name){
-	  
-	    double d = location->interpolate ? 
-		gfs_interpolate (cell, pm, v) : GFS_VALUE (cell, v);
-    	 
-           sendLocationValue(v->name, d, sim->time.i, sim->time.t, p.x,p.y,p.z); 
-	  }
-	  i = i->next;
-	}
-      }
+    guint maxVariables = g_slist_length(domain->variables);
+    GfsVariable** nonEmptyVariables = (GfsVariable**)malloc(sizeof(GfsVariable*) * maxVariables);
+
+    guint locationsQty = location->p->len;
+    guint variablesQty = 0;
+    GSList* vars = domain->variables;
+    while (vars) {
+        GfsVariable* v = vars->data;
+        if (v->name)
+            nonEmptyVariables[variablesQty++] = v;
+        vars = vars->next;
     }
 
-    g_free (pformat);
-    g_free (vformat);
+    int world_rank, world_size;
+    MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+
+    int* currentIndexes = (int*)malloc(sizeof(int) * locationsQty);
+    int* allIndexes = (int*)malloc(sizeof(int) * locationsQty * world_size);
+    double* currentValues = (double*)malloc(sizeof(double) * variablesQty * locationsQty);
+    double* allValues = (double*)malloc(sizeof(double) * variablesQty * locationsQty * world_size);
+
+    for(i = 0; i < locationsQty; ++i) {
+        currentIndexes[i] = -1;
+    }
+
+    g_log (G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "step=%d t=%.3f - Collecting probes information. ProbesQty=%d VariablesQty=%d", sim->time.i, sim->time.t, locationsQty, variablesQty);
+    gchar* collectedLocationsStr = g_strdup("");
+
+    gint iIndex = -1;
+
+    for (i = 0; i < locationsQty; i++) {
+      FttVector p = g_array_index (location->p, FttVector, i);
+      FttVector pm = p;
+
+      gfs_simulation_map (sim, &pm);
+      FttCell * cell = gfs_domain_locate (domain, pm, -1, NULL);
+
+      if (cell != NULL) {
+          ++iIndex;
+          currentIndexes[iIndex] = i;
+          gchar* aux = collectedLocationsStr;
+          collectedLocationsStr = g_strdup_printf("%s Loc%d=(%.2f,%.2f,%.2f)", aux, i, p.x, p.y, p.z);
+          g_free(aux);
+
+          for(gint iVariable = 0; iVariable < variablesQty; ++iVariable) {
+              GfsVariable * v = nonEmptyVariables[iVariable];
+              double d = location->interpolate ?
+                         gfs_interpolate (cell, pm, v) : GFS_VALUE (cell, v);
+              currentValues[iIndex * variablesQty + iVariable] = d;
+          }
+       }
+     }
+    g_log (G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "step=%d t=%.3f - Probes information collected. ProbesQty=%d ProbesCollectedInProcess=%d - %s", 
+            sim->time.i, sim->time.t, locationsQty, iIndex, collectedLocationsStr);
+    g_free(collectedLocationsStr);
+
+    MPI_Allgather(currentIndexes, locationsQty, MPI_INT, allIndexes, locationsQty, MPI_INT, MPI_COMM_WORLD);
+    MPI_Allgather(currentValues, locationsQty * variablesQty, MPI_DOUBLE, allValues, locationsQty * variablesQty, MPI_DOUBLE, MPI_COMM_WORLD);
+
+    gchar* allLocationsStr = g_strdup("");
+    for(i = 0; i < locationsQty * world_size; ++i) {
+        gchar* aux = allLocationsStr;
+        allLocationsStr = g_strdup_printf("%s %02d", aux, allIndexes[i]);
+        g_free(aux);
+    }
+    g_log (G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "step=%d t=%.3f - Probes information gathered from siblings", sim->time.i, sim->time.t, allLocationsStr);
+    g_free(allLocationsStr);
+
+    for(iIndex = 0; iIndex < locationsQty * world_size; ++iIndex){
+        if (allIndexes[iIndex] >= 0) {
+            FttVector p = g_array_index (location->p, FttVector, allIndexes[iIndex]);
+            for (gint iVariable = 0; iVariable < variablesQty; ++iVariable) {
+                GfsVariable * v = nonEmptyVariables[iVariable];
+                double d = allValues[iIndex * variablesQty + iVariable];
+                sendLocationValue(v->name, d, p, sim->time.i, sim->time.t);
+            }
+        }
+    }
+
+    free(nonEmptyVariables);
+    free(currentIndexes);
+    free(currentValues);
+    free(allIndexes);
+    free(allValues);
   }
   return FALSE;
 }
@@ -357,6 +410,7 @@ const gchar * g_module_check_init (void);
 
 const gchar * g_module_check_init (void)
 {
+  gfs_init_log(G_LOG_DOMAIN, G_DEBUG);
   gfs_controller_solid_force_class ();
   gfs_controller_location_class ();
   return NULL;
