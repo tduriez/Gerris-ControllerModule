@@ -1804,9 +1804,9 @@ void gfs_simulation_run (GfsSimulation * sim)
   g_timer_start (domain->clock);
   gfs_clock_start (domain->timer);
   gts_range_init (&domain->mpi_wait);
-  initServer();
+//  pyConnectorInit();
   (* GFS_SIMULATION_CLASS (GTS_OBJECT (sim)->klass)->run) (sim);
-  closeServer();
+  pyConnectorDestroy();
   gfs_clock_stop (domain->timer);
   g_timer_stop (domain->clock);
   g_log_remove_handler ("Gfs", id);

@@ -83,7 +83,7 @@ static gboolean gfs_controller_solid_force_event (GfsEvent * event,
   if ((* GFS_EVENT_CLASS (GTS_OBJECT_CLASS (gfs_controller_solid_force_class ())->parent_class)->event)
       (event, sim) &&
       sim->advection_params.dt > 0.) {
-    defineSimServer(sim);
+    pyConnectorInitSim(sim);
     GfsDomain * domain = GFS_DOMAIN (sim);
     FttVector pf, vf, pm, vm;
     gdouble L = sim->physical_params.L, Ln = pow (L, 3. + FTT_DIMENSION - 2.);
@@ -91,7 +91,7 @@ static gboolean gfs_controller_solid_force_event (GfsEvent * event,
     gfs_domain_solid_force (domain, &pf, &vf, &pm, &vm, GFS_CONTROLLER_SOLID_FORCE (event)->weight);
 
     g_log (G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "step=%d t=%.3f - Sending force information", sim->time.i, sim->time.t);
-    sendForceValue(pf,vf,pm,vm, sim->time.i, sim->time.t);
+    pyConnectorSendForce(pf,vf,pm,vm, sim->time.i, sim->time.t);
      
     return TRUE;
   }
@@ -100,6 +100,7 @@ static gboolean gfs_controller_solid_force_event (GfsEvent * event,
 
 static void gfs_controller_solid_force_class_init (GfsEventClass * klass)
 {
+  pyConnectorInit();
   GTS_OBJECT_CLASS (klass)->read = gfs_controller_solid_force_read;
   GTS_OBJECT_CLASS (klass)->write = gfs_controller_solid_force_write;
   GTS_OBJECT_CLASS (klass)->destroy = gfs_controller_solid_force_destroy;
@@ -269,7 +270,7 @@ static gboolean gfs_controller_location_event (GfsEvent * event,
 {
    if ((* GFS_EVENT_CLASS (GTS_OBJECT_CLASS (gfs_controller_location_class ())->parent_class)->event)
       (event, sim)) {
-    defineSimServer(sim);
+    pyConnectorInitSim(sim);
     GfsDomain * domain = GFS_DOMAIN (sim);
     GfsControllerLocation * location = GFS_CONTROLLER_LOCATION (event);
     guint i;
@@ -349,7 +350,7 @@ static gboolean gfs_controller_location_event (GfsEvent * event,
             for (gint iVariable = 0; iVariable < variablesQty; ++iVariable) {
                 GfsVariable * v = nonEmptyVariables[iVariable];
                 double d = allValues[iIndex * variablesQty + iVariable];
-                sendLocationValue(v->name, d, p, sim->time.i, sim->time.t);
+                pyConnectorSendLocation(v->name, d, p, sim->time.i, sim->time.t);
             }
         }
     }
@@ -365,6 +366,7 @@ static gboolean gfs_controller_location_event (GfsEvent * event,
 
 static void gfs_controller_location_class_init (GfsEventClass * klass)
 {
+  pyConnectorInit();
   GFS_EVENT_CLASS (klass)->event = gfs_controller_location_event;
   GTS_OBJECT_CLASS (klass)->destroy = gfs_controller_location_destroy;
   GTS_OBJECT_CLASS (klass)->read = gfs_controller_location_read;

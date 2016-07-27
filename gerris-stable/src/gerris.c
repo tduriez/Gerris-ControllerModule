@@ -103,10 +103,10 @@ int main (int argc, char * argv[])
       { NULL }
     };
     int option_index = 0;
-    switch ((c = getopt_long (argc, argv, "hVs:ip:PD:I:mde:b:vBcz",
+    switch ((c = getopt_long (argc, argv, "hVs:ip:PD:I:mde:b:vB",
 			      long_options, &option_index))) {
 #else /* not HAVE_GETOPT_LONG */
-    switch ((c = getopt (argc, argv, "hVs:ip:PD:I:mde:b:vBcz"))) {
+    switch ((c = getopt (argc, argv, "hVs:ip:PD:I:mde:b:vB"))) {
 #endif /* not HAVE_GETOPT_LONG */
     case 'P': /* profile */
       profile = TRUE;
@@ -158,12 +158,6 @@ int main (int argc, char * argv[])
       break;
     case 'v': /* verbose */
       verbose = TRUE;
-      break;
-    case 'c':
-      useController(1);
-      break;	
-    case 'z':
-      useDebug(1);
       break;
     case 'h': { /* help */
       gchar * usage = 

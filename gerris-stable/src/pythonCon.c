@@ -6,9 +6,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <pythonCon.h>
-//#ifdef HAVE_MPI
+#ifdef HAVE_MPI
  #include <mpi.h>
-//#endif
+#endif
 
 
 #define DEFAULT_SEND_FIFO_NAME "/tmp/gerris2python_request"
@@ -16,32 +16,75 @@
 #define DEFAULT_VALUES_FIFO_NAME "/tmp/gerris2python_values"
 #define PYTHON_CONTROLLER_PATH "python/main.py"
 
-static int useCont = 0;
-static int debug = 0;
+static char connectorInitialized = 0;
 static py_connector_t connector;
 
+typedef struct _ValueController		ValueController;
+typedef struct _ForceValue	        ForceValue;
+typedef struct _LocationValue         	LocationValue;
+
+/**
+* Force value struct. Represents the pressure and viscous force, and pressure and viscous moments.
+*/
+struct _ForceValue {
+        FttVector pf, vf, pm, vm;
+};
+
+/**
+* Location value struct. Represents a location and a value of a variable in that location.
+*/
+struct _LocationValue{
+        double value;
+        double position[3];
+	char varName[64];
+};
+
+/**
+* Value Controller struct. Represents a value to be sent to python. 
+* It can be either a Force value or a Location value.
+*/
+struct _ValueController {
+	int32_t type;
+	double time;
+	int32_t step;
+	union {
+		ForceValue forceValue;
+		LocationValue locationValue;
+	} data;
+};
+
+typedef struct _CallController		CallController;
+
+/**
+* Call controller struct. Used to call a function controller in python.
+*/
+struct _CallController {
+	int32_t type;
+	char funcName[32];
+};
+
+typedef struct _ReturnController	ReturnController;
+
+/**
+* Return controller struct. Used to get the returned value of a controller from python.
+*/
+struct _ReturnController {
+	double returnValue;
+	char funcName[32];
+};
 
 static void py_connector_init_fifos(py_connector_t* self);
 static void py_connector_init_controller(py_connector_t* self);
-
-int useController(int use){
-	useCont = use;
-	return 0;
-}
-
-int useDebug(int deb){
-	debug = deb;
-	return 0;
-}
+static void py_connector_check();
 
 void py_connector_init(py_connector_t* self) {
     self->worldRank = 0;
     self->sim = NULL;
-//#ifdef HAVE_MPI
+#ifdef HAVE_MPI
     int world_rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
     self->worldRank = world_rank;
-//#endif
+#endif
 
     size_t sendNameSize = sizeof(DEFAULT_SEND_FIFO_NAME)+3;
     size_t recvNameSize = sizeof(DEFAULT_RECV_FIFO_NAME)+3;
@@ -60,7 +103,7 @@ void py_connector_init(py_connector_t* self) {
 }
 
 void py_connector_init_simulation(py_connector_t* self, GfsSimulation* sim) {
-    if (! self->sim) {
+    if (!self->sim && sim) {
         g_log (G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "step=%d - t=%.3f - Defining Simulation for py_connector", sim->time.i, sim->time.t);
         self->sim = sim;
     }
@@ -201,38 +244,38 @@ void py_connector_send_location(py_connector_t* self, char* var, double value, F
     g_hash_table_remove_all(connector.cache);
 }
 
-int initServer(){
-    if (useCont)
-        py_connector_init(&connector);
-
-    return 0;
-}
-void defineSimServer(GfsSimulation* sim){
-    if (useCont)
-        py_connector_init_simulation(&connector, sim);
+static void py_connector_check() {
+    if (!connectorInitialized)
+        g_log (G_LOG_DOMAIN, G_LOG_LEVEL_ERROR, "Python connector wasn't initialized. Further processing and controller actions may depend in unitialized components.");
 }
 
-int closeServer(){
-    if(useCont){
-        py_connector_destroy(&connector);
-    }
-    return 0;
+void pyConnectorInit(){
+    py_connector_init(&connector);
+    connectorInitialized = 1;
+}
+
+void pyConnectorInitSim(GfsSimulation* sim){
+    py_connector_check();
+    py_connector_init_simulation(&connector, sim);
+}
+
+void pyConnectorDestroy(){
+    py_connector_check();
+    py_connector_destroy(&connector);
 }
 
 double controller(char* function){
-    if(useCont)
-        return py_connector_get_value(&connector, function);
-    else
-        return 0;
+    py_connector_check();
+    return py_connector_get_value(&connector, function);
 }
 
-void sendForceValue(FttVector pf, FttVector vf, FttVector pm, FttVector vm, int step, double time){
-    if (useCont)
-        py_connector_send_force(&connector, pf, vf, pm, vm, step, time);
+void pyConnectorSendForce(FttVector pf, FttVector vf, FttVector pm, FttVector vm, int step, double time){
+    py_connector_check();
+    py_connector_send_force(&connector, pf, vf, pm, vm, step, time);
 }
 
-void sendLocationValue(char* var, double value, FttVector p, int step, double time){
-    if (useCont)
-        py_connector_send_location(&connector, var, value, p, step, time);
+void pyConnectorSendLocation(char* var, double value, FttVector p, int step, double time){
+    py_connector_check();
+    py_connector_send_location(&connector, var, value, p, step, time);
 }
 
