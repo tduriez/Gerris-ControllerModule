@@ -52,6 +52,7 @@ static void gfs_controller_solid_force_destroy (GtsObject * object)
     gts_object_destroy (GTS_OBJECT (GFS_CONTROLLER_SOLID_FORCE (object)->weight));
 
   (* GTS_OBJECT_CLASS (gfs_controller_solid_force_class ())->parent_class->destroy) (object);
+  pyConnectorDestroy();
 }
 
 static void gfs_controller_solid_force_read (GtsObject ** o, GtsFile * fp)
@@ -100,11 +101,15 @@ static gboolean gfs_controller_solid_force_event (GfsEvent * event,
 
 static void gfs_controller_solid_force_class_init (GfsEventClass * klass)
 {
-  pyConnectorInit();
   GTS_OBJECT_CLASS (klass)->read = gfs_controller_solid_force_read;
   GTS_OBJECT_CLASS (klass)->write = gfs_controller_solid_force_write;
   GTS_OBJECT_CLASS (klass)->destroy = gfs_controller_solid_force_destroy;
   GFS_EVENT_CLASS (klass)->event = gfs_controller_solid_force_event;
+}
+
+static void gfs_controller_solid_force_init (GfsControllerLocation * object)
+{
+  pyConnectorInit();
 }
 
 GfsEventClass * gfs_controller_solid_force_class (void)
@@ -117,7 +122,7 @@ GfsEventClass * gfs_controller_solid_force_class (void)
       sizeof (GfsControllerSolidForce),
       sizeof (GfsEventClass),
       (GtsObjectClassInitFunc) gfs_controller_solid_force_class_init,
-      (GtsObjectInitFunc) NULL,
+      (GtsObjectInitFunc) gfs_controller_solid_force_init,
       (GtsArgSetFunc) NULL,
       (GtsArgGetFunc) NULL
     };
@@ -147,6 +152,7 @@ static void gfs_controller_location_destroy (GtsObject * object)
     g_free (l->precision);
 
   (* GTS_OBJECT_CLASS (gfs_controller_location_class ())->parent_class->destroy) (object);
+  pyConnectorDestroy();
 }
 
 static void gfs_controller_location_read (GtsObject ** o, GtsFile * fp)
@@ -322,8 +328,10 @@ static gboolean gfs_controller_location_event (GfsEvent * event,
 
           for(gint iVariable = 0; iVariable < variablesQty; ++iVariable) {
               GfsVariable * v = nonEmptyVariables[iVariable];
-              double d = location->interpolate ?
-                         gfs_interpolate (cell, pm, v) : GFS_VALUE (cell, v);
+              double d = gfs_dimensional_value(v, 
+                                 location->interpolate ?
+                                 gfs_interpolate (cell, pm, v) : GFS_VALUE (cell, v)
+                             );
               currentValues[iIndex * variablesQty + iVariable] = d;
           }
        }
@@ -366,7 +374,6 @@ static gboolean gfs_controller_location_event (GfsEvent * event,
 
 static void gfs_controller_location_class_init (GfsEventClass * klass)
 {
-  pyConnectorInit();
   GFS_EVENT_CLASS (klass)->event = gfs_controller_location_event;
   GTS_OBJECT_CLASS (klass)->destroy = gfs_controller_location_destroy;
   GTS_OBJECT_CLASS (klass)->read = gfs_controller_location_read;
@@ -375,6 +382,7 @@ static void gfs_controller_location_class_init (GfsEventClass * klass)
 
 static void gfs_controller_location_init (GfsControllerLocation * object)
 {
+  pyConnectorInit();
   object->p = g_array_new (FALSE, FALSE, sizeof (FttVector));
   object->precision = default_precision;
   object->interpolate = TRUE;

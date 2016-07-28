@@ -250,8 +250,10 @@ static void py_connector_check() {
 }
 
 void pyConnectorInit(){
-    py_connector_init(&connector);
-    connectorInitialized = 1;
+    if (!connectorInitialized) {
+        py_connector_init(&connector);
+        connectorInitialized = 1;
+    }
 }
 
 void pyConnectorInitSim(GfsSimulation* sim){
@@ -260,8 +262,10 @@ void pyConnectorInitSim(GfsSimulation* sim){
 }
 
 void pyConnectorDestroy(){
-    py_connector_check();
-    py_connector_destroy(&connector);
+    if (connectorInitialized) {
+        py_connector_destroy(&connector);
+        connectorInitialized = 0;
+    }
 }
 
 double controller(char* function){

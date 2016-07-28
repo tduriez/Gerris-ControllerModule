@@ -35,7 +35,6 @@
 #include "map.h"
 #include "river.h"
 #include "version.h"
-#include "pythonCon.h"
 
 /**
  * The incompressible Euler solver.
@@ -1804,9 +1803,7 @@ void gfs_simulation_run (GfsSimulation * sim)
   g_timer_start (domain->clock);
   gfs_clock_start (domain->timer);
   gts_range_init (&domain->mpi_wait);
-//  pyConnectorInit();
   (* GFS_SIMULATION_CLASS (GTS_OBJECT (sim)->klass)->run) (sim);
-  pyConnectorDestroy();
   gfs_clock_stop (domain->timer);
   g_timer_stop (domain->clock);
   g_log_remove_handler ("Gfs", id);
