@@ -7,8 +7,8 @@
         static double R = 0.5;
         static double Ut = 1;
         static double REFINE_MIN =1;
-        static double REFINE_MAX = 6;
-        static double REFINE_SOLID_MAX = 8;
+        static double REFINE_MAX = 7;
+        static double REFINE_SOLID_MAX = 9;
   }
   Refine {
     return (1 - fabs(2*y/BOX_SIZE)) * (REFINE_MAX - REFINE_MIN) + REFINE_MIN;

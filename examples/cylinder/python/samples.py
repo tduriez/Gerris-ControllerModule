@@ -1,0 +1,121 @@
+import threading
+import struct
+from struct import *
+import logging
+import collections
+
+# Class for storing a given force value from gerris.
+class ForceData:
+    def __init__(self, pf, vf, pm, vm):
+        self.pf = pf
+        self.vf = vf
+        self.pm = pm
+        self.vm = vm
+
+# Class for storing a given Location value from gerris
+class ProbeData:
+    def __init__(self, location, variable, value):
+        self.location = location
+        self.variable = variable
+        self.value = value
+
+
+        self.varMap = {}
+    def addValue(self, varName, pos, value):
+        values = self.varMap.get(varName)
+        if values == None:
+            values = []
+            self.varMap[varName] = values
+        values.append((pos,value))
+    def getVariables(self):
+        return self.varMap.keys()
+    def getValues(self, variable):
+        return self.varMap.get(variable)
+
+# Class for storing a given value from gerris. It can be either a location or a force value.
+class Sample:
+    def __init__(self, time, step, data):
+        self.time = time
+        self.step = step
+        self.data = data
+
+class SamplesData:
+    class SamplesList:
+        def __init__(self, time, step):
+            self.time = time
+            self.step = step
+            self.samples = []
+
+    def __init__(self, samplesWindow):
+        self.currentStep = None
+        self.currentTime = None
+        self._lastSamples = None
+        self.forces = collections.deque()
+        self._allSamples = collections.deque()
+        self.samplesWindow = samplesWindow
+        self._probesByTime = collections.defaultdict(list)
+        self._probesByVariable = collections.defaultdict(list)
+        self._probesByLocation = collections.defaultdict(list)
+
+
+    def addForce(self, sample):
+        self.forces.append(sample)
+        if len(self.forces) > self.samplesWindow:
+            self.forces.popleft()
+
+    def addProbe(self, sample):
+        if self.currentStep is None or self.currentStep < sample.step:
+            self._lastSamples = SamplesData.SamplesList(sample.time, sample.step)
+            self._allSamples.append(self._lastSamples)
+            self.currentStep = sample.step
+            self.currentTime = sample.time
+        elif self.currentStep > sample.step:
+            raise ValueError('Sample to add was generated prior to the last registered timestamp. Sample step:%d - time: %f. Last registered step:%d - time: %f.'
+                             % (sample.step, sample.time, self.currentStep, self.currentTime))
+
+        self._lastSamples.samples.append(sample)
+
+        self._probesByTime[sample.time].append(sample)
+        self._probesByVariable[sample.data.variable].append(sample)
+        self._probesByLocation[sample.data.location].append(sample)
+        if len(self._allSamples) > self.samplesWindow:
+            samplesList = self._allSamples.popleft()
+            del self._probesByTime[samplesList.time]
+            for sample in samplesList.samples:
+                self._probesByVariable[sample.data.variable].remove(sample)
+                self._probesByLocation[sample.data.location].remove(sample)
+
+    @property
+    def allTimes(self):
+        return self._probesByTime.keys()
+
+    @property
+    def allVariables(self):
+        return self._probesByVariable.keys()
+
+    @property
+    def allLocations(self):
+        return self._probesByLocation.keys()
+
+    def samplesByVariable(self, variable):
+        return self._probesByVariable[variable]
+
+    def samplesByLocation(self, location):
+        return self._probesByLocation[location]
+
+    def samplesByTime(self, time):
+        return self._probesByTime[time]
+
+    @property
+    def samples(self):
+        result = []
+        for s in self._allSamples:
+            result.extend(s.samples)
+        return result
+
+    @property
+    def currentSamples(self):
+        if self.currentStep is None:
+            return None
+        else:
+            return self._lastSamples.samples

@@ -2,21 +2,20 @@
 
 import os
 import sys, getopt
-import imp
+import importlib
 import threading
 import logging
 import collections
-import FunctionController
-import ValuesController
+from communications import ControllerThread, CollectorThread
+from samples import SamplesData
 
-#communicate with another process through named pipes
-#one for receive command, the other for send command
-#one to receive values
-
-scriptPath = "./module"
-cant = 1
+controllerFolder = 'python/user'
+controllerModuleName = 'controller'
+samplesWindow = 1
 mpiproc = 0
 
+#Communicate with another process through named pipes
+#one for receive command, the other for send command, and the last one to receive values
 callFifoFilepath = ''
 returnFifoFilepath = ''
 valuesFifoFilepath = ''
@@ -34,7 +33,7 @@ for opt, arg in opts:
 	if opt == '--script':
 		scriptPath = arg
 	elif opt == '--samples':
-		cant = int(arg)
+		samplesWindow = int(arg)
 	elif opt == '--mpiproc':
 		mpiproc = int(arg)
 	elif opt == '--requestfifo':
@@ -56,32 +55,20 @@ valuesFifo = open(valuesFifoFilepath, 'r')
 value = 0
 
 # Load functions defined by user.
-foo = imp.load_source('script', scriptPath)
+sys.path.append(controllerFolder)
+controlFunc = importlib.import_module(controllerModuleName)
 
-
-forcesValues = collections.deque()
-locationsValues = collections.deque()
+samples = SamplesData(samplesWindow)
 lock = threading.Lock()
 
 # Create Values and Function threads.
-valuesThread = ValuesController.ValuesController(valuesFifo,\
-		forcesValues,\
-		locationsValues,\
-		lock,\
-		cant)
-												
-callThread = FunctionController.FunctionController(callFifo,\
-						returnFifo,\
-						foo,\
-						lock,\
-						forcesValues,\
-						locationsValues)
+collectorThread = CollectorThread(valuesFifo, samples, lock)
+controllerThread = ControllerThread(callFifo, returnFifo, samples, lock, controlFunc)
 
-valuesThread.start()
-callThread.start()
-
-valuesThread.join()
-callThread.join()
+collectorThread.start()
+controllerThread.start()
+collectorThread.join()
+controllerThread.join()
 
 logging.info("Closing FIFOS")
 callFifo.close()
