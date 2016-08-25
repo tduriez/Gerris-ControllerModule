@@ -337,7 +337,7 @@ static gboolean gfs_controller_location_event (GfsEvent * event,
        }
      }
     g_log (G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "step=%d t=%.3f - Probes information collected. ProbesQty=%d ProbesCollectedInProcess=%d - %s", 
-            sim->time.i, sim->time.t, locationsQty, iIndex, collectedLocationsStr);
+            sim->time.i, sim->time.t, locationsQty, iIndex + 1, collectedLocationsStr);
     g_free(collectedLocationsStr);
 
     MPI_Allgather(currentIndexes, locationsQty, MPI_INT, allIndexes, locationsQty, MPI_INT, MPI_COMM_WORLD);

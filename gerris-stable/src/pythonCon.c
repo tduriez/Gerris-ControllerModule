@@ -176,26 +176,29 @@ double py_connector_get_value(py_connector_t* self, char* function) {
     double value = 0;
 	char* cachedValue = g_hash_table_lookup(self->cache, function);
 	if(cachedValue == NULL){
+        if (!self->sim)
+            g_log (G_LOG_DOMAIN, G_LOG_LEVEL_WARNING,"No simulation defined before calling py_connector_get_value. System will resume and use controller results anyway.");
+        gint step = self->sim ? self->sim->time.i : 0;
+        double time = self->sim ? self->sim->time.t : 0;
+
 		CallController callController;
 		callController.type = 0;
 		strncpy(callController.funcName, function, 31);
 		callController.funcName[31] = '\0';
         size_t bytesToSend = sizeof(callController);
+        g_log (G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "step=%d - t=%.3f - Sending call request for function = %s", step, time, function);
         int sentBytes = write(self->sendFD, (void*)&callController, bytesToSend);
         if (sentBytes != bytesToSend)
              g_log (G_LOG_DOMAIN, G_LOG_LEVEL_ERROR,"Fail on py_connector_get_value - SentBytes=%d BytesToSend=%d", sentBytes, bytesToSend);
 		char buf[40];
+        g_log (G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "step=%d - t=%.3f - Reading actuation response...", step, time);
 		int bytes = read(self->recvFD, buf, 40);
 		buf[39] = '\0';
 		ReturnController* returnValue = (ReturnController*) buf;
         value = returnValue->returnValue;
         gchar* newCachedValue = g_strdup_printf("%f", value);
         g_hash_table_insert(self->cache, function, newCachedValue);
-        if (!self->sim)
-            g_log (G_LOG_DOMAIN, G_LOG_LEVEL_WARNING,"No simulation defined before calling py_connector_get_value. System will resume and use controller results anyway.");
-        gint step = self->sim ? self->sim->time.i : 0;
-        double time = self->sim ? self->sim->time.t : 0;
-        g_log (G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG,"step=%d t=%.3f py_connector_get_value - %s=%f", step, time, function, value);
+        g_log (G_LOG_DOMAIN, G_LOG_LEVEL_INFO,"step=%d t=%.3f - Actuation response received - %s=%f", step, time, function, value);
 	}
     else
         value = atof(cachedValue);
@@ -212,14 +215,14 @@ void py_connector_send_force(py_connector_t* self, FttVector pf, FttVector vf, F
 	valueToSend.data.forceValue.vf = vf;
 	valueToSend.data.forceValue.pm = pm;
 	valueToSend.data.forceValue.vm = vm;
-    int bytesToSend = sizeof(valueToSend);
-	int sentBytes = write(self->valuesFD,&valueToSend,bytesToSend);
-    if (sentBytes != bytesToSend)
-        g_log (G_LOG_DOMAIN, G_LOG_LEVEL_ERROR,"Fail on py_connector_send_force - SentBytes=%d BytesToSend=%d", sentBytes, bytesToSend);
     g_log (G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "step=%d - t=%.3f - Sending pf=(%.3f,%.3f,%.3f), vm=(%.3f,%.3f,%.3f)", 
                                             valueToSend.step, valueToSend.time,
                                             valueToSend.data.forceValue.pf.x,valueToSend.data.forceValue.pf.y,valueToSend.data.forceValue.pf.z,
                                             valueToSend.data.forceValue.vm.x,valueToSend.data.forceValue.vm.y,valueToSend.data.forceValue.vm.z);
+    int bytesToSend = sizeof(valueToSend);
+	int sentBytes = write(self->valuesFD,&valueToSend,bytesToSend);
+    if (sentBytes != bytesToSend)
+        g_log (G_LOG_DOMAIN, G_LOG_LEVEL_ERROR,"Fail on py_connector_send_force - SentBytes=%d BytesToSend=%d", sentBytes, bytesToSend);
     py_connector_clear_cache(self);
 }
 
@@ -237,10 +240,10 @@ void py_connector_send_location(py_connector_t* self, char* var, double value, F
     valueToSend.data.locationValue.position[2] = p.z;
     // Send it through FIFO.
     int bytesToSend = sizeof(valueToSend);
+    g_log (G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "step=%d - t=%.3f - Sending %s=%f - (x,y,z)=(%f, %f, %f)", step, time, var, value, p.x, p.y, p.z);
 	int sentBytes = write(self->valuesFD,&valueToSend,bytesToSend);
     if (sentBytes != bytesToSend)
         g_log (G_LOG_DOMAIN, G_LOG_LEVEL_ERROR,"Fail on py_connector_send_location - SentBytes=%d BytesToSend=%d", sentBytes, bytesToSend);
-    g_log (G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "step=%d - t=%.3f - Sending %s=%f - (x,y,z)=(%f, %f, %f)", step, time, var, value, p.x, p.y, p.z);
     g_hash_table_remove_all(connector.cache);
 }
 
