@@ -399,21 +399,16 @@ void gfs_enable_floating_point_exceptions (void)
 
 void gfs_init_log (const gchar *logDomain, const gchar* logLevels)
 {
+  static gchar* all_loglevels[] = {"all", "debug", "info", "message", "warning", "error", "critical" };
+  static GLogLevelFlags all_flags[] = {G_LOG_LEVEL_MASK, G_LOG_LEVEL_DEBUG, G_LOG_LEVEL_INFO, 
+                                      G_LOG_LEVEL_MESSAGE, G_LOG_LEVEL_WARNING, G_LOG_LEVEL_ERROR, 
+                                      G_LOG_LEVEL_CRITICAL};
   GLogLevelFlags flags = 0;
-  if (strstr(logLevels, "all"))
-      flags |= G_LOG_LEVEL_MASK;
-  if (strstr(logLevels, "debug"))
-      flags |= G_LOG_LEVEL_DEBUG;
-  if (strstr(logLevels, "info"))
-      flags |= G_LOG_LEVEL_INFO;
-  if (strstr(logLevels, "message"))
-      flags |= G_LOG_LEVEL_MESSAGE;
-  if (strstr(logLevels, "warning"))
-      flags |= G_LOG_LEVEL_WARNING;
-  if (strstr(logLevels, "error"))
-      flags |= G_LOG_LEVEL_ERROR;
-  if (strstr(logLevels, "critical"))
-      flags |= G_LOG_LEVEL_CRITICAL;
+  for(size_t i = 0; flags == 0 && i < sizeof(all_loglevels); ++i) {
+      if (strstr(logLevels, all_loglevels[i]))
+          for(size_t j = i; j < sizeof(all_loglevels); ++j)
+              flags |= all_flags[j];
+  }
 
   //set log handlers for all domains using the configured log level.
   g_log_set_handler (NULL,
