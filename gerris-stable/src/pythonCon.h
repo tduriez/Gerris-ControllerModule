@@ -6,6 +6,10 @@
 #include "simulation.h"
 
 typedef struct {
+  gchar * tmpFolder;
+  gchar * mainController;
+  gchar * userScript;
+  guint samplesWindow;
   int worldRank;
   char* sendFifoName;
   char* recvFifoName;
@@ -19,7 +23,7 @@ typedef struct {
 } py_connector_t;
 
 
-void py_connector_init(py_connector_t* self);
+void py_connector_init(py_connector_t* self, gchar * tmpFolder, gchar * mainController, gchar * userScript, guint samplesWindow);
 void py_connector_init_simulation(py_connector_t* self, GfsSimulation* sim);
 void py_connector_destroy(py_connector_t* self);
 double py_connector_get_value(py_connector_t* self, char* function);
@@ -30,7 +34,7 @@ void py_connector_send_location(py_connector_t* self, char* var, double value, F
 /**
 * Python Communicator initialization routine. Creates pipes and open file descriptors for external communication.
 */
-void pyConnectorInit();
+void pyConnectorInit(gchar * tmpFolder, gchar * mainController, gchar * userScript, guint samplesWindow);
 
 /**
 * Defines the current simulation for Python Communicator usage.

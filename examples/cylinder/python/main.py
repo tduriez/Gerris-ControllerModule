@@ -22,29 +22,34 @@ valuesFifoFilepath = ''
 
 
 try:
-	opts, args = getopt.getopt(sys.argv[1:],'', ['script=', 'samples=','mpiproc=', 'requestfifo=', 'returnfifo=', 'samplesfifo='])
+    opts, args = getopt.getopt(sys.argv[1:],'', ['script=', 'samples=','mpiproc=', 'requestfifo=', 'returnfifo=', 'samplesfifo=', 'loglevel='])
 except getopt.GetoptError:
-	sys.stderr.write("Python **: main.py --script <scriptFilepath> --samples <numberOfSamplesInControllingWindow> --mpiproc <processId> --requestfifo <filepath> --returnfifo <filepath> --samplesfifo <filepath>")
-	sys.exit(1)
+    sys.stderr.write("Python **: Error invoking main.py.\nSample command line: ./main.py --script <scriptFilepath> --samples <numberOfSamplesInControllingWindow> --mpiproc <processId> --requestfifo <filepath> --returnfifo <filepath> --samplesfifo <filepath> --loglevel (debug|info|warning|error)")
+    raise
 if not opts or len(opts) < 6:
-	sys.stderr.write("Python **: Error invoking main.py. Required arguments: --script --samples --mpiproc --requestfifo --returnfifo --samplesfifo")
-	sys.exit(2)
+    sys.stderr.write("Python **: Error invoking main.py. Required arguments: --script --samples --mpiproc --requestfifo --returnfifo --samplesfifo --loglevel")
+    sys.exit(1)
 for opt, arg in opts:
-	if opt == '--script':
-		scriptPath = arg
-	elif opt == '--samples':
-		samplesWindow = int(arg)
-	elif opt == '--mpiproc':
-		mpiproc = int(arg)
-	elif opt == '--requestfifo':
-		callFifoFilepath = arg
-	elif opt == '--returnfifo':
-		returnFifoFilepath = arg
-	elif opt == '--samplesfifo':
-		valuesFifoFilepath = arg
-
-
-logging.basicConfig(format='%(asctime)s Python %(levelname)s **: PE=' + str(mpiproc) + ' - %(message)s', level=logging.DEBUG)
+    if opt == '--script':
+        scriptPath = arg
+    elif opt == '--samples':
+        samplesWindow = int(arg)
+    elif opt == '--mpiproc':
+        mpiproc = int(arg)
+    elif opt == '--requestfifo':
+        callFifoFilepath = arg
+    elif opt == '--returnfifo':
+        returnFifoFilepath = arg
+    elif opt == '--samplesfifo':
+        valuesFifoFilepath = arg
+    elif opt == '--loglevel':
+        logLevelStr = arg
+try:
+    logLevel = getattr(logging, logLevelStr.upper())
+except AttributeError:
+    sys.stderr.write("Python **: Error configuring logging level to: %s. Valid values are 'debug', 'info', 'warning', 'error'" % logLevelStr)
+    raise
+logging.basicConfig(format='%(asctime)s Python %(levelname)s **: PE=' + str(mpiproc) + ' - %(message)s', level=logLevel)
 
 logging.info("Opening Gerris2Python FIFO at %s" % callFifoFilepath)
 callFifo = open(callFifoFilepath, 'r')
@@ -67,12 +72,14 @@ controllerThread = ControllerThread(callFifo, returnFifo, samples, lock, control
 
 collectorThread.start()
 controllerThread.start()
-collectorThread.join()
-controllerThread.join()
-
-logging.info("Closing FIFOS")
-callFifo.close()
-returnFifo.close()
-valuesFifo.close()
-logging.info("Python server finished")
-
+try:
+    collectorThread.join()
+    controllerThread.join()
+    logging.info("Simulation finished. Closing FIFOs...")
+    callFifo.close()
+    returnFifo.close()
+    valuesFifo.close()
+    logging.info("Python server finished")
+except KeyboardInterrupt:
+    logging.error("Keyboard signal detected. Aborting tasks to close the server...")
+    raise

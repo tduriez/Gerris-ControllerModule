@@ -78,7 +78,7 @@ static void gfs_controller_solid_force_write (GtsObject * o, FILE * fp)
     gfs_function_write (l->weight, fp);
 }
 
-static gboolean gfs_controller_solid_force_event (GfsEvent * event, 
+static gboolean gfs_controller_solid_force_event (GfsEvent * event,
 					      GfsSimulation * sim)
 {
   if ((* GFS_EVENT_CLASS (GTS_OBJECT_CLASS (gfs_controller_solid_force_class ())->parent_class)->event)
@@ -93,7 +93,6 @@ static gboolean gfs_controller_solid_force_event (GfsEvent * event,
 
     g_log (G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "step=%d t=%.3f - Sending force information", sim->time.i, sim->time.t);
     pyConnectorSendForce(pf,vf,pm,vm, sim->time.i, sim->time.t);
-     
     return TRUE;
   }
   return FALSE;
@@ -109,7 +108,7 @@ static void gfs_controller_solid_force_class_init (GfsEventClass * klass)
 
 static void gfs_controller_solid_force_init (GfsControllerLocation * object)
 {
-  pyConnectorInit();
+//  pyConnectorInit();
 }
 
 GfsEventClass * gfs_controller_solid_force_class (void)
@@ -142,6 +141,7 @@ GfsEventClass * gfs_controller_solid_force_class (void)
  */
 
 static gchar default_precision[] = "%g";
+static gchar default_tmpfolder[] = "/tmp";
 
 static void gfs_controller_location_destroy (GtsObject * object)
 {
@@ -150,6 +150,10 @@ static void gfs_controller_location_destroy (GtsObject * object)
   g_free (l->label);
   if (l->precision != default_precision)
     g_free (l->precision);
+  if (l->tmp_folder != default_tmpfolder)
+    g_free (l->tmp_folder);
+  g_free (l->main_controller);
+  g_free (l->user_script);
 
   (* GTS_OBJECT_CLASS (gfs_controller_location_class ())->parent_class->destroy) (object);
   pyConnectorDestroy();
@@ -160,10 +164,74 @@ static void gfs_controller_location_read (GtsObject ** o, GtsFile * fp)
   GfsControllerLocation * l = GFS_CONTROLLER_LOCATION (*o);
 
   if (GTS_OBJECT_CLASS (gfs_controller_location_class ())->parent_class->read)
-    (* GTS_OBJECT_CLASS (gfs_controller_location_class ())->parent_class->read) 
+    (* GTS_OBJECT_CLASS (gfs_controller_location_class ())->parent_class->read)
       (o, fp);
   if (fp->type == GTS_ERROR)
     return;
+
+  if (fp->type == '{') {
+    gchar * label = NULL, * precision = NULL;
+    gchar * tmp_folder = NULL, * main_controller = NULL, * user_script = NULL;
+    GtsFileVariable var[] = {
+      {GTS_STRING, "label", TRUE, &label},
+      {GTS_STRING, "precision", TRUE, &precision},
+      {GTS_INT,    "interpolate", TRUE, &l->interpolate},
+      {GTS_STRING, "tmp-folder", TRUE, &tmp_folder},
+      {GTS_STRING, "python-main", TRUE, &main_controller},
+      {GTS_STRING, "python-userscript", TRUE, &user_script},
+      {GTS_INT,    "samples-window", TRUE, &l->samples_window},
+      {GTS_NONE}
+    };
+    gts_file_assign_variables (fp, var);
+    if (fp->type == GTS_ERROR) {
+      g_free (label);
+      g_free (precision);
+      g_free (user_script);
+      g_free (tmp_folder);
+      g_free (main_controller);
+      return;
+    }
+
+    if (precision != NULL) {
+      if (l->precision != default_precision)
+        g_free (l->precision);
+      l->precision = precision;
+    }
+
+    if (label != NULL) {
+      g_free (l->label);
+      l->label = label;
+    }
+
+    if (tmp_folder != NULL) {
+      if (l->tmp_folder != default_tmpfolder)
+        g_free (l->tmp_folder);
+      l->tmp_folder = tmp_folder;
+    }
+
+    if (main_controller == NULL) {
+      gts_file_error (fp, "expecting \"python-main\" to locate the main Python script. i.e.: python-main=\"./python/main.py\"");
+      return;
+    }
+    else {
+      g_free (l->main_controller);
+      l->main_controller = main_controller;
+    }
+
+    if (user_script == NULL) {
+      gts_file_error (fp, "expecting \"python-userscript\" to locate the custom user script containing the controlling functions. i.e.: python-userscript=\"./python/user/controller.py\"");
+      return;
+    }
+    else {
+      g_free (l->user_script);
+      l->user_script = user_script;
+    }
+
+    if (l->samples_window < 1) {
+      gts_file_error (fp, "expecting \"samples-window\" equal or greater than 1");
+      return;
+    }
+  }
 
   if (fp->type == GTS_STRING) {
     FILE * fptr = fopen (fp->token->str, "r");
@@ -215,32 +283,7 @@ static void gfs_controller_location_read (GtsObject ** o, GtsFile * fp)
     g_array_append_val (l->p, p);
   }
 
-  if (fp->type == '{') {
-    gchar * label = NULL, * precision = NULL;
-    GtsFileVariable var[] = {
-      {GTS_STRING, "label", TRUE, &label},
-      {GTS_STRING, "precision", TRUE, &precision},
-      {GTS_INT,    "interpolate", TRUE, &l->interpolate},
-      {GTS_NONE}
-    };
-    gts_file_assign_variables (fp, var);
-    if (fp->type == GTS_ERROR) {
-      g_free (label);
-      g_free (precision);
-      return;
-    }
-
-    if (precision != NULL) {
-      if (l->precision != default_precision)
-	g_free (l->precision);
-      l->precision = precision;
-    }
-
-    if (label != NULL) {
-      g_free (l->label);
-      l->label = label;
-    }
-  }
+  pyConnectorInit(l->tmp_folder, l->main_controller, l->user_script, l->samples_window);
 }
 
 static void gfs_controller_location_write (GtsObject * o, FILE * fp)
@@ -251,6 +294,20 @@ static void gfs_controller_location_write (GtsObject * o, FILE * fp)
   (* GTS_OBJECT_CLASS (gfs_controller_location_class ())->parent_class->write) (o, fp);
 
   fputs (" {\n", fp);
+  if (l->precision != default_precision)
+    fprintf (fp, "  precision = %s\n", l->precision);
+  if (l->label)
+    fprintf (fp, "  label = \"%s\"\n", l->label);
+  if (!l->interpolate)
+    fputs ("  interpolate = 0\n", fp);
+  if (l->tmp_folder != default_tmpfolder)
+    fprintf( fp, "  tmp_folder = \"%s\"\n", l->tmp_folder);
+  fprintf (fp, "  python-main= \"%s\"\n", l->main_controller);
+  fprintf (fp, "  python-userscript = \"%s\"\n", l->user_script);
+  fprintf (fp, "  samples-window = %d\n", l->samples_window);
+  fputc ('}', fp);
+
+  fputs (" {\n", fp);
   gchar * format = g_strdup_printf ("%s %s %s\n", l->precision, l->precision, l->precision);
   for (i = 0; i < l->p->len; i++) {
     FttVector p = g_array_index (l->p, FttVector, i);
@@ -258,20 +315,9 @@ static void gfs_controller_location_write (GtsObject * o, FILE * fp)
   }
   g_free (format);
   fputc ('}', fp);
-
-  if (l->precision != default_precision || l->label) {
-    fputs (" {\n", fp);
-    if (l->precision != default_precision)
-      fprintf (fp, "  precision = %s\n", l->precision);
-    if (l->label)
-      fprintf (fp, "  label = \"%s\"\n", l->label);
-    if (!l->interpolate)
-      fputs ("  interpolate = 0\n", fp);
-    fputc ('}', fp);
-  }
 }
 
-static gboolean gfs_controller_location_event (GfsEvent * event, 
+static gboolean gfs_controller_location_event (GfsEvent * event,
 					   GfsSimulation * sim)
 {
    if ((* GFS_EVENT_CLASS (GTS_OBJECT_CLASS (gfs_controller_location_class ())->parent_class)->event)
@@ -307,7 +353,7 @@ static gboolean gfs_controller_location_event (GfsEvent * event,
         currentIndexes[i] = -1;
     }
 
-    g_log (G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "step=%d t=%.3f - Collecting probes information. ProbesQty=%d VariablesQty=%d", sim->time.i, sim->time.t, locationsQty, variablesQty);
+    g_log (G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "step=%d t=%.3f - Collecting probes information. ProbesQty=%d VariablesQty=%d", sim->time.i, sim->time.t, locationsQty, variablesQty);
     gchar* collectedLocationsStr = g_strdup("");
 
     gint iIndex = -1;
@@ -328,7 +374,7 @@ static gboolean gfs_controller_location_event (GfsEvent * event,
 
           for(gint iVariable = 0; iVariable < variablesQty; ++iVariable) {
               GfsVariable * v = nonEmptyVariables[iVariable];
-              double d = gfs_dimensional_value(v, 
+              double d = gfs_dimensional_value(v,
                                  location->interpolate ?
                                  gfs_interpolate (cell, pm, v) : GFS_VALUE (cell, v)
                              );
@@ -336,21 +382,32 @@ static gboolean gfs_controller_location_event (GfsEvent * event,
           }
        }
      }
-    g_log (G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "step=%d t=%.3f - Probes information collected. ProbesQty=%d ProbesCollectedInProcess=%d - %s", 
+    g_log (G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "step=%d t=%.3f - Sharing probes information with sibling processes. ProbesQty=%d ProbesCollectedInProcess=%d - %s",
             sim->time.i, sim->time.t, locationsQty, iIndex + 1, collectedLocationsStr);
     g_free(collectedLocationsStr);
 
     MPI_Allgather(currentIndexes, locationsQty, MPI_INT, allIndexes, locationsQty, MPI_INT, MPI_COMM_WORLD);
     MPI_Allgather(currentValues, locationsQty * variablesQty, MPI_DOUBLE, allValues, locationsQty * variablesQty, MPI_DOUBLE, MPI_COMM_WORLD);
 
-    gchar* allLocationsStr = g_strdup("");
-    for(i = 0; i < locationsQty * world_size; ++i) {
-        gchar* aux = allLocationsStr;
-        allLocationsStr = g_strdup_printf("%s %02d", aux, allIndexes[i]);
-        g_free(aux);
+    gchar** msgLocsAndVars = malloc(sizeof(gchar*) * (locationsQty + variablesQty + 3));
+    gint iMsg = 0;
+    msgLocsAndVars[iMsg++] = g_strdup("Locations:");
+    for(i = 0; i < locationsQty; ++i) {
+        FttVector p = g_array_index (location->p, FttVector, i);
+        msgLocsAndVars[iMsg++] = g_strdup_printf("(%.2f, %.2f, %.2f)",  p.x, p.y, p.z);
     }
-    g_log (G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "step=%d t=%.3f - Probes information gathered from siblings", sim->time.i, sim->time.t, allLocationsStr);
-    g_free(allLocationsStr);
+    msgLocsAndVars[iMsg++] = g_strdup("- Variables:");
+    for (gint i = 0; i < variablesQty; ++i) {
+        GfsVariable * v = nonEmptyVariables[i];
+        msgLocsAndVars[iMsg++] = g_strdup_printf("%s", v->name);
+    }
+    msgLocsAndVars[iMsg++] = NULL;
+    gchar* msg = g_strjoinv(" ", msgLocsAndVars);
+    g_log (G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "step=%d t=%.3f - Sending probes information to controller. %s", sim->time.i, sim->time.t, msg);
+
+    for (gint i = 0; i < (iMsg-1); ++i)
+        g_free(msgLocsAndVars[i]);
+    g_free(msg);
 
     for(iIndex = 0; iIndex < locationsQty * world_size; ++iIndex){
         if (allIndexes[iIndex] >= 0) {
@@ -382,10 +439,11 @@ static void gfs_controller_location_class_init (GfsEventClass * klass)
 
 static void gfs_controller_location_init (GfsControllerLocation * object)
 {
-  pyConnectorInit();
   object->p = g_array_new (FALSE, FALSE, sizeof (FttVector));
   object->precision = default_precision;
   object->interpolate = TRUE;
+  object->tmp_folder = default_tmpfolder;
+  object->samples_window = 1;
 }
 
 GfsEventClass * gfs_controller_location_class (void)

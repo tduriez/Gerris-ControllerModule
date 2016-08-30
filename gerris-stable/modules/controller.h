@@ -37,6 +37,8 @@ struct _GfsControllerLocation {
   /*< public >*/
   GArray * p;
   gchar * precision, * label;
+  gchar * user_script, * tmp_folder, * main_controller;
+  gint samples_window;
   gboolean interpolate;
 };
 

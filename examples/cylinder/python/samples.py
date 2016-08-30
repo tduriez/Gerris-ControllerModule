@@ -12,6 +12,12 @@ class ForceData:
         self.pm = pm
         self.vm = vm
 
+    def __str__(self):
+        return 'PF:%s, VF:%s, PM:%s, VM:%s' % (self.pf, self.vf, self.pm, self.vm)
+
+    def __repr__(self):
+        return 'ForceData(%s, %s, %s, %s)' % (self.pf, self.vf, self.pm, self.vm)
+
 # Class for storing a given Location value from gerris
 class ProbeData:
     def __init__(self, location, variable, value):
@@ -19,18 +25,11 @@ class ProbeData:
         self.variable = variable
         self.value = value
 
+    def __str__(self):
+        return 'Var:%s, %s=%f' % (self.variable, self.location, self.value)
 
-        self.varMap = {}
-    def addValue(self, varName, pos, value):
-        values = self.varMap.get(varName)
-        if values == None:
-            values = []
-            self.varMap[varName] = values
-        values.append((pos,value))
-    def getVariables(self):
-        return self.varMap.keys()
-    def getValues(self, variable):
-        return self.varMap.get(variable)
+    def __repr__(self):
+        return 'ProbeData(%s, %s, %f)' % (self.location, self.variable, self.value)
 
 # Class for storing a given value from gerris. It can be either a location or a force value.
 class Sample:
@@ -38,6 +37,12 @@ class Sample:
         self.time = time
         self.step = step
         self.data = data
+
+    def __str__(self):
+        return '(step:%d, t:%.3f, %s)' % (self.step, self.time, self.data)
+
+    def __repr__(self):
+        return 'Sample(%.3f, %d, %s)' % (self.time, self.step, repr(self.data))
 
 class SamplesData:
     class SamplesList:

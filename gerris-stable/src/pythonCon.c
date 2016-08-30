@@ -11,10 +11,9 @@
 #endif
 
 
-#define DEFAULT_SEND_FIFO_NAME "/tmp/gerris2python_request"
-#define DEFAULT_RECV_FIFO_NAME "/tmp/python2gerris_response"
-#define DEFAULT_VALUES_FIFO_NAME "/tmp/gerris2python_values"
-#define PYTHON_CONTROLLER_PATH "python/main.py"
+#define DEFAULT_SEND_FIFO_NAME "gerris2python_request"
+#define DEFAULT_RECV_FIFO_NAME "python2gerris_response"
+#define DEFAULT_VALUES_FIFO_NAME "gerris2python_values"
 
 static char connectorInitialized = 0;
 static py_connector_t connector;
@@ -77,24 +76,31 @@ static void py_connector_init_fifos(py_connector_t* self);
 static void py_connector_init_controller(py_connector_t* self);
 static void py_connector_check();
 
-void py_connector_init(py_connector_t* self) {
+void py_connector_init(py_connector_t* self,
+                       gchar * tmpFolder, gchar * mainController, gchar * userScript, guint samplesWindow ) {
     self->worldRank = 0;
     self->sim = NULL;
+    self->tmpFolder = tmpFolder;
+    self->mainController = mainController;
+    self->userScript = userScript;
+    self->samplesWindow = samplesWindow;
+
 #ifdef HAVE_MPI
     int world_rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
     self->worldRank = world_rank;
 #endif
 
-    size_t sendNameSize = sizeof(DEFAULT_SEND_FIFO_NAME)+3;
-    size_t recvNameSize = sizeof(DEFAULT_RECV_FIFO_NAME)+3;
-    size_t valuesNameSize = sizeof(DEFAULT_VALUES_FIFO_NAME)+3;
+    size_t baseSize = strlen(self->tmpFolder) + 1;
+    size_t sendNameSize = baseSize + sizeof(DEFAULT_SEND_FIFO_NAME)+3;
+    size_t recvNameSize = baseSize + sizeof(DEFAULT_RECV_FIFO_NAME)+3;
+    size_t valuesNameSize = baseSize + sizeof(DEFAULT_VALUES_FIFO_NAME)+3;
     self->sendFifoName = (char*)malloc(sendNameSize);
     self->recvFifoName = (char*)malloc(recvNameSize);
     self->valuesFifoName = (char*)malloc(valuesNameSize);
-    snprintf(self->sendFifoName, sendNameSize, "%s_%02d", DEFAULT_SEND_FIFO_NAME, self->worldRank);
-    snprintf(self->recvFifoName, recvNameSize, "%s_%02d", DEFAULT_RECV_FIFO_NAME, self->worldRank);
-    snprintf(self->valuesFifoName, valuesNameSize, "%s_%02d", DEFAULT_VALUES_FIFO_NAME, self->worldRank);
+    snprintf(self->sendFifoName, sendNameSize, "%s/%s_%02d", self->tmpFolder, DEFAULT_SEND_FIFO_NAME, self->worldRank);
+    snprintf(self->recvFifoName, recvNameSize, "%s/%s_%02d", self->tmpFolder, DEFAULT_RECV_FIFO_NAME, self->worldRank);
+    snprintf(self->valuesFifoName, valuesNameSize, "%s/%s_%02d", self->tmpFolder, DEFAULT_VALUES_FIFO_NAME, self->worldRank);
 
     self->cache = g_hash_table_new(g_str_hash, g_str_equal);
 
@@ -108,8 +114,9 @@ void py_connector_init_simulation(py_connector_t* self, GfsSimulation* sim) {
         self->sim = sim;
     }
 }
-static void py_connector_init_controller(py_connector_t* self) {
-    g_log (G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "Starting Python controller at '%s'...", PYTHON_CONTROLLER_PATH);
+static void py_connector_init_controller(py_connector_t* self) { 
+    g_log (G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "Starting Python controller at '%s'. TmpFolder='%s' UserScript='%s' SamplesWindow=%d", 
+              self->mainController, self->tmpFolder, self->userScript, self->samplesWindow);
     pid_t pid = fork();
     if (pid) {
         self->pythonControllerPID = pid;
@@ -118,9 +125,12 @@ static void py_connector_init_controller(py_connector_t* self) {
     else {
         char worldRankStr[3];
         snprintf(worldRankStr, 3, "%02d", self->worldRank);
-        execl(PYTHON_CONTROLLER_PATH, "main.py", "--script","python/module/script.py","--samples","5","--mpiproc", worldRankStr,
-              "--requestfifo", self->sendFifoName, "--returnfifo", self->recvFifoName, "--samplesfifo", self->valuesFifoName, NULL);
-        g_log (G_LOG_DOMAIN, G_LOG_LEVEL_ERROR, "Python controller couldn't start propertly.");
+        char samplesWindowStr[64];
+        snprintf(samplesWindowStr, 64, "%d", self->samplesWindow);
+        execl(self->mainController, "main", "--script", self->userScript, "--samples", samplesWindowStr, "--mpiproc", worldRankStr,
+              "--requestfifo", self->sendFifoName, "--returnfifo", self->recvFifoName, "--samplesfifo", self->valuesFifoName,
+              "--loglevel", G_DEBUG, NULL);
+        g_log (G_LOG_DOMAIN, G_LOG_LEVEL_ERROR, "Python controller couldn't start properly.");
         exit(EXIT_FAILURE);
     }
 }
@@ -186,10 +196,10 @@ double py_connector_get_value(py_connector_t* self, char* function) {
 		strncpy(callController.funcName, function, 31);
 		callController.funcName[31] = '\0';
         size_t bytesToSend = sizeof(callController);
-        g_log (G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "step=%d - t=%.3f - Sending call request for function = %s", step, time, function);
+        g_log (G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "step=%d - t=%.3f - Sending call request for function = %s", step, time, function);
         int sentBytes = write(self->sendFD, (void*)&callController, bytesToSend);
         if (sentBytes != bytesToSend)
-             g_log (G_LOG_DOMAIN, G_LOG_LEVEL_ERROR,"Fail on py_connector_get_value - SentBytes=%d BytesToSend=%d", sentBytes, bytesToSend);
+             g_log (G_LOG_DOMAIN, G_LOG_LEVEL_ERROR,"Fail on py_connector_get_value - SentBytes=%d BytesToSend=%zu", sentBytes, bytesToSend);
 		char buf[40];
         g_log (G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "step=%d - t=%.3f - Reading actuation response...", step, time);
 		int bytes = read(self->recvFD, buf, 40);
@@ -252,9 +262,9 @@ static void py_connector_check() {
         g_log (G_LOG_DOMAIN, G_LOG_LEVEL_ERROR, "Python connector wasn't initialized. Further processing and controller actions may depend in unitialized components.");
 }
 
-void pyConnectorInit(){
+void pyConnectorInit(gchar * tmpFolder, gchar * mainController, gchar * userScript, guint samplesWindow) {
     if (!connectorInitialized) {
-        py_connector_init(&connector);
+        py_connector_init(&connector, tmpFolder, mainController, userScript, samplesWindow);
         connectorInitialized = 1;
     }
 }
