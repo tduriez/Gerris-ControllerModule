@@ -23,9 +23,11 @@ or
 - ./configure
 - make
 - sudo make install
-
 - sudo /sbin/ldconfig
 
+Note:
+In order to have debugging information for development purposes, gerris-stable could be compiled with different log levels. You can do it by running:
+- make -j4 CFLAGS='-ggdb -0g -DG_DEBUG=\"debug\"' && sudo make install
 
 Full instructions at:
  - http://gfs.sourceforge.net/wiki/index.php/Installing_from_source
