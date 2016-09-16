@@ -6,11 +6,10 @@ import importlib
 import threading
 import logging
 import collections
+import re
 from communications import ControllerThread, CollectorThread
 from samples import SamplesData
 
-controllerFolder = 'python/user'
-controllerModuleName = 'controller'
 samplesWindow = 1
 mpiproc = 0
 
@@ -31,7 +30,7 @@ if not opts or len(opts) < 6:
     sys.exit(1)
 for opt, arg in opts:
     if opt == '--script':
-        scriptPath = arg
+        userScript = arg
     elif opt == '--samples':
         samplesWindow = int(arg)
     elif opt == '--mpiproc':
@@ -60,6 +59,14 @@ valuesFifo = open(valuesFifoFilepath, 'r')
 value = 0
 
 # Load functions defined by user.
+scriptMatch = re.match(r'^(.*)/(.*)\.py$', userScript)
+if not scriptMatch:
+    msg = "The given user script location is not valid. Provided path: %s. Expected pattern: <module-folder>/<filename>.py" % userScript
+    logging.error(msg)
+    raise ValueError(msg)
+
+controllerFolder = scriptMatch.group(1)
+controllerModuleName = scriptMatch.group(2)
 sys.path.append(controllerFolder)
 controlFunc = importlib.import_module(controllerModuleName)
 
