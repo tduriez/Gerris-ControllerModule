@@ -7,7 +7,7 @@ import threading
 import logging
 import collections
 import re
-from communications import ControllerThread, CollectorThread
+from communications import ControllerThread, CollectorThread, ExecutionContext
 from samples import SamplesData
 
 samplesWindow = 1
@@ -71,11 +71,11 @@ sys.path.append(controllerFolder)
 controlFunc = importlib.import_module(controllerModuleName)
 
 samples = SamplesData(samplesWindow)
-lock = threading.Lock()
+context = ExecutionContext()
 
 # Create Values and Function threads.
-collectorThread = CollectorThread(valuesFifo, samples, lock)
-controllerThread = ControllerThread(callFifo, returnFifo, samples, lock, controlFunc)
+collectorThread = CollectorThread(valuesFifo, samples, context)
+controllerThread = ControllerThread(callFifo, returnFifo, samples, controlFunc, context)
 
 collectorThread.start()
 controllerThread.start()

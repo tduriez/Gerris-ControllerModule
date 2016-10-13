@@ -317,6 +317,45 @@ static void gfs_controller_location_write (GtsObject * o, FILE * fp)
   fputc ('}', fp);
 }
 
+static void do_send_locations(GfsSimulation* sim,
+                GfsVariable* nonEmptyVariables, guint variablesQty,
+                FttVector* locations, guint locationsQty,
+                int* allIndexes, double* allValues, int world_size)
+{
+    pyConnectorSendLocationsMetadata(nonEmptyVariables, variablesQty, locations, locationsQty);
+    gchar** msgLocsAndVars = malloc(sizeof(gchar*) * (locationsQty + variablesQty + 3));
+    gint iMsg = 0;
+    msgLocsAndVars[iMsg++] = g_strdup("Locations:");
+    for(guint i = 0; i < locationsQty; ++i) {
+        FttVector p = locations[i];
+        msgLocsAndVars[iMsg++] = g_strdup_printf("(%.2f, %.2f, %.2f)",  p.x, p.y, p.z);
+    }
+    msgLocsAndVars[iMsg++] = g_strdup("- Variables:");
+    for (guint i = 0; i < variablesQty; ++i) {
+        GfsVariable* v = &nonEmptyVariables[i];
+        msgLocsAndVars[iMsg++] = g_strdup_printf("%s", v->name);
+    }
+    msgLocsAndVars[iMsg++] = NULL;
+    gchar* msg = g_strjoinv(" ", msgLocsAndVars);
+    g_log (G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "step=%d t=%.3f - Sending probes information to controller. %s", sim->time.i, sim->time.t, msg);
+
+    for (guint i = 0; i < (iMsg-1); ++i)
+        g_free(msgLocsAndVars[i]);
+    free(msgLocsAndVars);
+    g_free(msg);
+
+    for(guint iIndex = 0; iIndex < locationsQty * world_size; ++iIndex){
+        if (allIndexes[iIndex] >= 0) {
+            FttVector p = locations[allIndexes[iIndex]];
+            for (guint iVariable = 0; iVariable < variablesQty; ++iVariable) {
+                GfsVariable* v = &nonEmptyVariables[iVariable];
+                double d = allValues[iIndex * variablesQty + iVariable];
+                pyConnectorSendLocation(v->name, d, p, sim->time.i, sim->time.t);
+            }
+        }
+    }
+}
+
 static gboolean gfs_controller_location_event (GfsEvent * event,
 					   GfsSimulation * sim)
 {
@@ -328,15 +367,19 @@ static gboolean gfs_controller_location_event (GfsEvent * event,
     guint i;
 
     guint maxVariables = g_slist_length(domain->variables);
-    GfsVariable** nonEmptyVariables = (GfsVariable**)malloc(sizeof(GfsVariable*) * maxVariables);
+    GfsVariable* nonEmptyVariables = (GfsVariable*)malloc(sizeof(GfsVariable) * maxVariables);
 
     guint locationsQty = location->p->len;
+    FttVector* locations = malloc(sizeof(FttVector) * locationsQty);
+    for(i = 0; i < locationsQty; ++i) {
+        locations[i] = g_array_index (location->p, FttVector, i);
+    }
     guint variablesQty = 0;
     GSList* vars = domain->variables;
     while (vars) {
         GfsVariable* v = vars->data;
         if (v->name)
-            nonEmptyVariables[variablesQty++] = v;
+            nonEmptyVariables[variablesQty++] = *v;
         vars = vars->next;
     }
 
@@ -373,7 +416,7 @@ static gboolean gfs_controller_location_event (GfsEvent * event,
           g_free(aux);
 
           for(gint iVariable = 0; iVariable < variablesQty; ++iVariable) {
-              GfsVariable * v = nonEmptyVariables[iVariable];
+              GfsVariable * v = &nonEmptyVariables[iVariable];
               double d = gfs_dimensional_value(v,
                                  location->interpolate ?
                                  gfs_interpolate (cell, pm, v) : GFS_VALUE (cell, v)
@@ -381,7 +424,7 @@ static gboolean gfs_controller_location_event (GfsEvent * event,
               currentValues[iIndex * variablesQty + iVariable] = d;
           }
        }
-     }
+    }
     g_log (G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "step=%d t=%.3f - Sharing probes information with sibling processes. ProbesQty=%d ProbesCollectedInProcess=%d - %s",
             sim->time.i, sim->time.t, locationsQty, iIndex + 1, collectedLocationsStr);
     g_free(collectedLocationsStr);
@@ -389,37 +432,9 @@ static gboolean gfs_controller_location_event (GfsEvent * event,
     MPI_Allgather(currentIndexes, locationsQty, MPI_INT, allIndexes, locationsQty, MPI_INT, MPI_COMM_WORLD);
     MPI_Allgather(currentValues, locationsQty * variablesQty, MPI_DOUBLE, allValues, locationsQty * variablesQty, MPI_DOUBLE, MPI_COMM_WORLD);
 
-    gchar** msgLocsAndVars = malloc(sizeof(gchar*) * (locationsQty + variablesQty + 3));
-    gint iMsg = 0;
-    msgLocsAndVars[iMsg++] = g_strdup("Locations:");
-    for(i = 0; i < locationsQty; ++i) {
-        FttVector p = g_array_index (location->p, FttVector, i);
-        msgLocsAndVars[iMsg++] = g_strdup_printf("(%.2f, %.2f, %.2f)",  p.x, p.y, p.z);
-    }
-    msgLocsAndVars[iMsg++] = g_strdup("- Variables:");
-    for (gint i = 0; i < variablesQty; ++i) {
-        GfsVariable * v = nonEmptyVariables[i];
-        msgLocsAndVars[iMsg++] = g_strdup_printf("%s", v->name);
-    }
-    msgLocsAndVars[iMsg++] = NULL;
-    gchar* msg = g_strjoinv(" ", msgLocsAndVars);
-    g_log (G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "step=%d t=%.3f - Sending probes information to controller. %s", sim->time.i, sim->time.t, msg);
+    do_send_locations(sim, nonEmptyVariables, variablesQty, locations, locationsQty, allIndexes, allValues, world_size);
 
-    for (gint i = 0; i < (iMsg-1); ++i)
-        g_free(msgLocsAndVars[i]);
-    g_free(msg);
-
-    for(iIndex = 0; iIndex < locationsQty * world_size; ++iIndex){
-        if (allIndexes[iIndex] >= 0) {
-            FttVector p = g_array_index (location->p, FttVector, allIndexes[iIndex]);
-            for (gint iVariable = 0; iVariable < variablesQty; ++iVariable) {
-                GfsVariable * v = nonEmptyVariables[iVariable];
-                double d = allValues[iIndex * variablesQty + iVariable];
-                pyConnectorSendLocation(v->name, d, p, sim->time.i, sim->time.t);
-            }
-        }
-    }
-
+    free(locations);
     free(nonEmptyVariables);
     free(currentIndexes);
     free(currentValues);

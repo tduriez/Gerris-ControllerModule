@@ -5,72 +5,156 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
 #include <pythonCon.h>
 #ifdef HAVE_MPI
  #include <mpi.h>
 #endif
 
-
+#define FUNC_MAX_LENGTH 60
+#define VAR_MAX_LENGTH 28
 #define DEFAULT_SEND_FIFO_NAME "gerris2python_request"
 #define DEFAULT_RECV_FIFO_NAME "python2gerris_response"
 #define DEFAULT_VALUES_FIFO_NAME "gerris2python_values"
 
+#define PKG_FORCE_VALUE 0
+#define PKG_LOCATION_VALUE 1
+#define PKG_META_VARIABLE 2
+#define PKG_META_POSITION 3
+
+
 static char connectorInitialized = 0;
 static py_connector_t connector;
 
-typedef struct _ValueController		ValueController;
-typedef struct _ForceValue	        ForceValue;
-typedef struct _LocationValue         	LocationValue;
 
-/**
-* Force value struct. Represents the pressure and viscous force, and pressure and viscous moments.
-*/
-struct _ForceValue {
-        FttVector pf, vf, pm, vm;
-};
+typedef struct {
+    size_t* sizes;
+    size_t sizes_qty;
+    size_t total_size;
+    size_t unpack_offset;
+    size_t last_value_index;
+    void** values;
+    char* packed_values;
+} packet_t;
 
-/**
-* Location value struct. Represents a location and a value of a variable in that location.
-*/
-struct _LocationValue{
-        double value;
-        double position[3];
-	char varName[64];
-};
+void packet_create(packet_t* self, ...)
+{
+    self->total_size = 0;
+    va_list list_sizes;
+    va_start(list_sizes, self);
+    bool more_args = true;
+    size_t i = 0;
+    for(i = 0; more_args; ++i)
+    {
+        size_t size = va_arg(list_sizes, size_t);
+        more_args = (size > 0);
+    }
+    va_end(list_sizes);
+    self->sizes_qty = i;
 
-/**
-* Value Controller struct. Represents a value to be sent to python. 
-* It can be either a Force value or a Location value.
-*/
-struct _ValueController {
-	int32_t type;
-	double time;
-	int32_t step;
-	union {
-		ForceValue forceValue;
-		LocationValue locationValue;
-	} data;
-};
+    self->sizes = (size_t*)malloc(sizeof(size_t) * self->sizes_qty);
+    va_start(list_sizes, self);
+    for(i = 0; i < self->sizes_qty; ++i)
+    {
+        size_t size = va_arg(list_sizes, size_t);
+        self->total_size += size;
+        self->sizes[i] = size;
+    }
+    va_end(list_sizes);
+    self->unpack_offset= 0;
+    self->last_value_index = -1;
+    self->values = (void**)malloc(sizeof(void*) * self->sizes_qty);
+    self->packed_values = NULL;
+}
 
-typedef struct _CallController		CallController;
+void packet_add(packet_t* self, void* value) {
+    self->values[++self->last_value_index] = value;
+}
 
-/**
-* Call controller struct. Used to call a function controller in python.
-*/
-struct _CallController {
-	int32_t type;
-	char funcName[32];
-};
+const char* packet_get_pack(packet_t* self)
+{
+    if (!self->packed_values)
+    {
+        self->packed_values = (char*)malloc(self->total_size);
+        size_t offset = 0;
+        for(size_t i = 0; self->sizes[i] > 0; ++i) {
+            memcpy(self->packed_values + offset, self->values[i], self->sizes[i]);
+            offset += self->sizes[i];
+        }
+    }
+    return self->packed_values;
+}
 
-typedef struct _ReturnController	ReturnController;
+size_t packet_get_pack_size(packet_t* self) {
+    return self->total_size;
+}
 
-/**
-* Return controller struct. Used to get the returned value of a controller from python.
-*/
-struct _ReturnController {
-	double returnValue;
-	char funcName[32];
-};
+void packet_unpack(packet_t* self, void* value)
+{
+    if (self->packed_values)
+    {
+        if (self->last_value_index >= 0)
+            self->unpack_offset += self->sizes[self->last_value_index];
+        ++self->last_value_index;
+        memcpy(value, self->packed_values + self->unpack_offset, self->sizes[self->last_value_index]);
+    }
+}
+
+void packet_send(packet_t* self, int FD)
+{
+    const char* toSend = packet_get_pack(self);
+    size_t bytesToSend = packet_get_pack_size(self);
+
+    if (bytesToSend >= 4)
+        g_log (G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG,"Sending %zu bytes: [%02x %02x ... %02x %02x]", bytesToSend,
+                toSend[0], toSend[1], toSend[bytesToSend - 2], toSend[bytesToSend - 1]);
+    else
+        g_log (G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG,"Sending %zu bytes", bytesToSend);
+
+    size_t sentBytes = 0;
+    while(sentBytes < bytesToSend)
+    {
+        int result = write(FD, toSend + sentBytes, bytesToSend - sentBytes);
+        if (result < 1)
+        {
+            g_log (G_LOG_DOMAIN, G_LOG_LEVEL_ERROR,"Fail on PyConnector Send - SentBytes=%zu BytesToSend=%zu", sentBytes, bytesToSend);
+            break;
+        }
+        else
+            sentBytes += result;
+    }
+}
+
+void packet_receive(packet_t* self, int FD)
+{
+    if (!self->packed_values)
+        self->packed_values = (char*)malloc(self->total_size);
+
+    char* toReceive = self->packed_values;
+    size_t bytesToReceive = packet_get_pack_size(self);
+
+    g_log (G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG,"Receiving %zu bytes", bytesToReceive);
+
+    size_t receivedBytes = 0;
+    while(receivedBytes < bytesToReceive)
+    {
+        int result = read(FD, toReceive + receivedBytes, bytesToReceive - receivedBytes);
+        if (result < 1)
+        {
+            g_log (G_LOG_DOMAIN, G_LOG_LEVEL_ERROR,"Fail on PyConnector Receive - ReceivedBytes=%zu BytesToReceive=%zu", receivedBytes, bytesToReceive);
+            break;
+        }
+        else
+            receivedBytes += result;
+    }
+}
+
+void packet_destroy(packet_t* self) {
+    free(self->values);
+    if (self->packed_values)
+        free(self->packed_values);
+}
+
 
 static void py_connector_init_fifos(py_connector_t* self);
 static void py_connector_init_controller(py_connector_t* self);
@@ -125,8 +209,8 @@ static void py_connector_init_controller(py_connector_t* self) {
     else {
         char worldRankStr[3];
         snprintf(worldRankStr, 3, "%02d", self->worldRank);
-        char samplesWindowStr[64];
-        snprintf(samplesWindowStr, 64, "%d", self->samplesWindow);
+        char samplesWindowStr[VAR_MAX_LENGTH];
+        snprintf(samplesWindowStr, VAR_MAX_LENGTH, "%d", self->samplesWindow);
         execl(self->mainController, "main", "--script", self->userScript, "--samples", samplesWindowStr, "--mpiproc", worldRankStr,
               "--requestfifo", self->sendFifoName, "--returnfifo", self->recvFifoName, "--samplesfifo", self->valuesFifoName,
               "--loglevel", G_DEBUG, NULL);
@@ -187,28 +271,29 @@ double py_connector_get_value(py_connector_t* self, char* function) {
 	char* cachedValue = g_hash_table_lookup(self->cache, function);
 	if(cachedValue == NULL){
         if (!self->sim)
-            g_log (G_LOG_DOMAIN, G_LOG_LEVEL_WARNING,"No simulation defined before calling py_connector_get_value. System will resume and use controller results anyway.");
+            g_log (G_LOG_DOMAIN, G_LOG_LEVEL_WARNING,"No simulation defined before calling py_connector_get_value. System will resume and use controller results anyway assuming t=0.");
         gint step = self->sim ? self->sim->time.i : 0;
         double time = self->sim ? self->sim->time.t : 0;
 
-		CallController callController;
-		callController.type = 0;
-		strncpy(callController.funcName, function, 31);
-		callController.funcName[31] = '\0';
-        size_t bytesToSend = sizeof(callController);
-        g_log (G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "step=%d - t=%.3f - Sending call request for function = %s", step, time, function);
-        int sentBytes = write(self->sendFD, (void*)&callController, bytesToSend);
-        if (sentBytes != bytesToSend)
-             g_log (G_LOG_DOMAIN, G_LOG_LEVEL_ERROR,"Fail on py_connector_get_value - SentBytes=%d BytesToSend=%zu", sentBytes, bytesToSend);
-		char buf[40];
-        g_log (G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "step=%d - t=%.3f - Reading actuation response...", step, time);
-		int bytes = read(self->recvFD, buf, 40);
-		buf[39] = '\0';
-		ReturnController* returnValue = (ReturnController*) buf;
-        value = returnValue->returnValue;
+        packet_t pkg;
+        packet_create(&pkg, sizeof(double), sizeof(int32_t), sizeof(char) * FUNC_MAX_LENGTH, 0);
+        packet_add(&pkg, &time);
+        packet_add(&pkg, &step);
+        packet_add(&pkg, function);
+        g_log (G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "step=%d - t=%.3f - Sending call request for function=%s.", step, time, function);
+        packet_send(&pkg, self->sendFD);
+        packet_destroy(&pkg);
+
+        packet_t result;
+        packet_create(&result, sizeof(double), 0);
+        g_log (G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "step=%d - t=%.3f - Receiving actuation response...", step, time);
+        packet_receive(&result, self->recvFD);
+        packet_unpack(&result, &value);
+        packet_destroy(&result);
+
         gchar* newCachedValue = g_strdup_printf("%f", value);
         g_hash_table_insert(self->cache, function, newCachedValue);
-        g_log (G_LOG_DOMAIN, G_LOG_LEVEL_INFO,"step=%d t=%.3f - Actuation response received - %s=%f", step, time, function, value);
+        g_log (G_LOG_DOMAIN, G_LOG_LEVEL_INFO,"step=%d - t=%.3f - Actuation response received - Function=%s Result=%f", step, time, function, value);
 	}
     else
         value = atof(cachedValue);
@@ -217,44 +302,79 @@ double py_connector_get_value(py_connector_t* self, char* function) {
 }
 
 void py_connector_send_force(py_connector_t* self, FttVector pf, FttVector vf, FttVector pm, FttVector vm, int step, double time) {
-	ValueController valueToSend;
-	valueToSend.type = 0;
-	valueToSend.time = time;
-	valueToSend.step = step;
-	valueToSend.data.forceValue.pf = pf;
-	valueToSend.data.forceValue.vf = vf;
-	valueToSend.data.forceValue.pm = pm;
-	valueToSend.data.forceValue.vm = vm;
+    packet_t pkg;
+    packet_create(&pkg, sizeof(char), sizeof(double), sizeof(int32_t),
+                            sizeof(double), sizeof(double), sizeof(double),
+                            sizeof(double), sizeof(double), sizeof(double),
+                            sizeof(double), sizeof(double), sizeof(double),
+                            sizeof(double), sizeof(double), sizeof(double), 0);
+    char type = PKG_FORCE_VALUE;
+    packet_add(&pkg, &type);
+    packet_add(&pkg, &time);
+    packet_add(&pkg, &step);
+    packet_add(&pkg, &pf.x);
+    packet_add(&pkg, &pf.y);
+    packet_add(&pkg, &pf.z);
+    packet_add(&pkg, &vf.x);
+    packet_add(&pkg, &vf.y);
+    packet_add(&pkg, &vf.z);
+    packet_add(&pkg, &pm.x);
+    packet_add(&pkg, &pm.y);
+    packet_add(&pkg, &pm.z);
+    packet_add(&pkg, &vm.x);
+    packet_add(&pkg, &vm.y);
+    packet_add(&pkg, &vm.z);
     g_log (G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "step=%d - t=%.3f - Sending pf=(%.3f,%.3f,%.3f), vm=(%.3f,%.3f,%.3f)", 
-                                            valueToSend.step, valueToSend.time,
-                                            valueToSend.data.forceValue.pf.x,valueToSend.data.forceValue.pf.y,valueToSend.data.forceValue.pf.z,
-                                            valueToSend.data.forceValue.vm.x,valueToSend.data.forceValue.vm.y,valueToSend.data.forceValue.vm.z);
-    int bytesToSend = sizeof(valueToSend);
-	int sentBytes = write(self->valuesFD,&valueToSend,bytesToSend);
-    if (sentBytes != bytesToSend)
-        g_log (G_LOG_DOMAIN, G_LOG_LEVEL_ERROR,"Fail on py_connector_send_force - SentBytes=%d BytesToSend=%d", sentBytes, bytesToSend);
+                                            step, time, pf.x, pf.y, pf.z, vm.x, vm.y, vm.z);
+    packet_send(&pkg, self->valuesFD);
+    packet_destroy(&pkg);
     py_connector_clear_cache(self);
 }
 
 void py_connector_send_location(py_connector_t* self, char* var, double value, FttVector p, int step, double time){
-    ValueController valueToSend;
-    // LOCATION TYPE
-    valueToSend.type = 1;
-    valueToSend.time = time;
-    valueToSend.step = step;
-    strncpy(valueToSend.data.locationValue.varName, var, 63);
-    valueToSend.data.locationValue.varName[63] = '\0';
-    valueToSend.data.locationValue.value = value;
-    valueToSend.data.locationValue.position[0] = p.x;
-    valueToSend.data.locationValue.position[1] = p.y;
-    valueToSend.data.locationValue.position[2] = p.z;
-    // Send it through FIFO.
-    int bytesToSend = sizeof(valueToSend);
+    packet_t pkg;
+    packet_create(&pkg, sizeof(char), sizeof(double), sizeof(int32_t), sizeof(char) * VAR_MAX_LENGTH,
+                        sizeof(double), sizeof(double), sizeof(double), sizeof(double), 0);
+    char type = PKG_LOCATION_VALUE;
+    packet_add(&pkg, &type);
+    packet_add(&pkg, &time);
+    packet_add(&pkg, &step);
+    packet_add(&pkg, var);
+    packet_add(&pkg, &value);
+    packet_add(&pkg, &p.x);
+    packet_add(&pkg, &p.y);
+    packet_add(&pkg, &p.z);
     g_log (G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "step=%d - t=%.3f - Sending %s=%f - (x,y,z)=(%f, %f, %f)", step, time, var, value, p.x, p.y, p.z);
-	int sentBytes = write(self->valuesFD,&valueToSend,bytesToSend);
-    if (sentBytes != bytesToSend)
-        g_log (G_LOG_DOMAIN, G_LOG_LEVEL_ERROR,"Fail on py_connector_send_location - SentBytes=%d BytesToSend=%d", sentBytes, bytesToSend);
+    packet_send(&pkg, self->valuesFD);
+    packet_destroy(&pkg);
     g_hash_table_remove_all(connector.cache);
+}
+
+void py_connector_send_locations_metadata(py_connector_t* self, GfsVariable* variables, size_t variablesQty, FttVector* locations, size_t locationsQty){
+    g_log (G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "Sending locations metadata. VariablesQty=%zu - LocationsQty=%zu", variablesQty, locationsQty);
+    for(size_t i = 0; i < variablesQty; ++i) {
+        packet_t pkg;
+        packet_create(&pkg, sizeof(char), sizeof(uint32_t), sizeof(char) * VAR_MAX_LENGTH, 0);
+        char type = PKG_META_VARIABLE;
+        packet_add(&pkg, &type);
+        packet_add(&pkg, &variablesQty);
+        packet_add(&pkg, variables[i].name);
+        packet_send(&pkg, self->valuesFD);
+        packet_destroy(&pkg);
+    }
+
+    for(size_t i = 0; i < locationsQty; ++i) {
+        packet_t pkg;
+        packet_create(&pkg, sizeof(char), sizeof(uint32_t), sizeof(double), sizeof(double), sizeof(double), 0);
+        char type = PKG_META_POSITION;
+        packet_add(&pkg, &type);
+        packet_add(&pkg, &locationsQty);
+        packet_add(&pkg, &locations[i].x);
+        packet_add(&pkg, &locations[i].y);
+        packet_add(&pkg, &locations[i].z);
+        packet_send(&pkg, self->valuesFD);
+        packet_destroy(&pkg);
+    }
 }
 
 static void py_connector_check() {
@@ -296,3 +416,7 @@ void pyConnectorSendLocation(char* var, double value, FttVector p, int step, dou
     py_connector_send_location(&connector, var, value, p, step, time);
 }
 
+void pyConnectorSendLocationsMetadata(GfsVariable* variables, size_t variablesQty, FttVector* locations, size_t locationsQty) {
+    py_connector_check();
+    py_connector_send_locations_metadata(&connector, variables, variablesQty, locations, locationsQty);
+}
