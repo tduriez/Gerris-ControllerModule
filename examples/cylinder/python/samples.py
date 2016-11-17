@@ -94,6 +94,27 @@ class SamplesData:
     def allTimes(self):
         return self._probesByTime.keys()
 
+    def getClosestTime(self, time):
+        if not self._probesByTime:
+            return None
+        elif time in self._probesByTime:
+            return time
+        else:
+            keys = self._probesByTime.keys()
+            times = sorted(keys, key=lambda t:abs(t-time))
+            return times[0]
+
+    def getPreviousClosestTime(self, time):
+        if not self._probesByTime:
+            return None
+        else:
+            keys = [k for k in self._probesByTime.keys() if k < time]
+            if len(keys) == 0:
+                return None
+            else:
+                times = sorted(keys, key=lambda t:abs(t-time))
+                return times[0]
+
     @property
     def allVariables(self):
         return self._probesByVariable.keys()
@@ -103,13 +124,22 @@ class SamplesData:
         return self._probesByLocation.keys()
 
     def samplesByVariable(self, variable):
-        return self._probesByVariable[variable]
+        if variable in self._probesByVariable:
+            return self._probesByVariable[variable]
+        else:
+            return []
 
     def samplesByLocation(self, location):
-        return self._probesByLocation[location]
+        if variable in self._probesByLocation:
+            return self._probesByLocation[location]
+        else:
+            return []
 
     def samplesByTime(self, time):
-        return self._probesByTime[time]
+        if time in self._probesByTime:
+            return self._probesByTime[time]
+        else:
+            return []
 
     @property
     def samples(self):

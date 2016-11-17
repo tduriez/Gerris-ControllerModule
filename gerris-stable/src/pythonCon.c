@@ -32,7 +32,7 @@ typedef struct {
     size_t sizes_qty;
     size_t total_size;
     size_t unpack_offset;
-    size_t last_value_index;
+    size_t value_index;
     void** values;
     char* packed_values;
 } packet_t;
@@ -62,13 +62,13 @@ void packet_create(packet_t* self, ...)
     }
     va_end(list_sizes);
     self->unpack_offset= 0;
-    self->last_value_index = -1;
+    self->value_index = 0;
     self->values = (void**)malloc(sizeof(void*) * self->sizes_qty);
     self->packed_values = NULL;
 }
 
 void packet_add(packet_t* self, void* value) {
-    self->values[++self->last_value_index] = value;
+    self->values[self->value_index++] = value;
 }
 
 const char* packet_get_pack(packet_t* self)
@@ -93,10 +93,10 @@ void packet_unpack(packet_t* self, void* value)
 {
     if (self->packed_values)
     {
-        if (self->last_value_index >= 0)
-            self->unpack_offset += self->sizes[self->last_value_index];
-        ++self->last_value_index;
-        memcpy(value, self->packed_values + self->unpack_offset, self->sizes[self->last_value_index]);
+        if (self->value_index > 0)
+            self->unpack_offset += self->sizes[self->value_index - 1];
+        size_t size = self->sizes[self->value_index++];
+        memcpy(value, self->packed_values + self->unpack_offset, size);
     }
 }
 
@@ -158,6 +158,7 @@ void packet_destroy(packet_t* self) {
 
 static void py_connector_init_fifos(py_connector_t* self);
 static void py_connector_init_controller(py_connector_t* self);
+static void py_connector_get_step_time(py_connector_t* self, gint* step, double* time);
 static void py_connector_check();
 
 void py_connector_init(py_connector_t* self,
@@ -270,10 +271,9 @@ double py_connector_get_value(py_connector_t* self, char* function) {
     double value = 0;
 	char* cachedValue = g_hash_table_lookup(self->cache, function);
 	if(cachedValue == NULL){
-        if (!self->sim)
-            g_log (G_LOG_DOMAIN, G_LOG_LEVEL_WARNING,"No simulation defined before calling py_connector_get_value. System will resume and use controller results anyway assuming t=0.");
-        gint step = self->sim ? self->sim->time.i : 0;
-        double time = self->sim ? self->sim->time.t : 0;
+        gint step;
+        double time;
+        py_connector_get_step_time(self, &step, &time);
 
         packet_t pkg;
         packet_create(&pkg, sizeof(double), sizeof(int32_t), sizeof(char) * FUNC_MAX_LENGTH, 0);
@@ -301,7 +301,11 @@ double py_connector_get_value(py_connector_t* self, char* function) {
     return value;
 }
 
-void py_connector_send_force(py_connector_t* self, FttVector pf, FttVector vf, FttVector pm, FttVector vm, int step, double time) {
+void py_connector_send_force(py_connector_t* self, FttVector pf, FttVector vf, FttVector pm, FttVector vm) {
+    gint step;
+    double time;
+    py_connector_get_step_time(self, &step, &time);
+
     packet_t pkg;
     packet_create(&pkg, sizeof(char), sizeof(double), sizeof(int32_t),
                             sizeof(double), sizeof(double), sizeof(double),
@@ -331,19 +335,18 @@ void py_connector_send_force(py_connector_t* self, FttVector pf, FttVector vf, F
     py_connector_clear_cache(self);
 }
 
-void py_connector_send_location(py_connector_t* self, char* var, double value, FttVector p, int step, double time){
+void py_connector_send_location(py_connector_t* self, char* var, double value, FttVector p){
+    gint step;
+    double time;
+    py_connector_get_step_time(self, &step, &time);
+
     packet_t pkg;
-    packet_create(&pkg, sizeof(char), sizeof(double), sizeof(int32_t), sizeof(char) * VAR_MAX_LENGTH,
-                        sizeof(double), sizeof(double), sizeof(double), sizeof(double), 0);
+    packet_create(&pkg, sizeof(char), sizeof(double), sizeof(int32_t), sizeof(double), 0);
     char type = PKG_LOCATION_VALUE;
     packet_add(&pkg, &type);
     packet_add(&pkg, &time);
     packet_add(&pkg, &step);
-    packet_add(&pkg, var);
     packet_add(&pkg, &value);
-    packet_add(&pkg, &p.x);
-    packet_add(&pkg, &p.y);
-    packet_add(&pkg, &p.z);
     g_log (G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "step=%d - t=%.3f - Sending %s=%f - (x,y,z)=(%f, %f, %f)", step, time, var, value, p.x, p.y, p.z);
     packet_send(&pkg, self->valuesFD);
     packet_destroy(&pkg);
@@ -351,12 +354,18 @@ void py_connector_send_location(py_connector_t* self, char* var, double value, F
 }
 
 void py_connector_send_locations_metadata(py_connector_t* self, GfsVariable* variables, size_t variablesQty, FttVector* locations, size_t locationsQty){
-    g_log (G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "Sending locations metadata. VariablesQty=%zu - LocationsQty=%zu", variablesQty, locationsQty);
+    gint step;
+    double time;
+    py_connector_get_step_time(self, &step, &time);
+
+    g_log (G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, "step=%d - t=%.3f - Sending locations metadata. VariablesQty=%zu - LocationsQty=%zu", step, time, variablesQty, locationsQty);
     for(size_t i = 0; i < variablesQty; ++i) {
         packet_t pkg;
-        packet_create(&pkg, sizeof(char), sizeof(uint32_t), sizeof(char) * VAR_MAX_LENGTH, 0);
+        packet_create(&pkg, sizeof(char), sizeof(double), sizeof(int32_t), sizeof(uint32_t), sizeof(char) * VAR_MAX_LENGTH, 0);
         char type = PKG_META_VARIABLE;
         packet_add(&pkg, &type);
+        packet_add(&pkg, &time);
+        packet_add(&pkg, &step);
         packet_add(&pkg, &variablesQty);
         packet_add(&pkg, variables[i].name);
         packet_send(&pkg, self->valuesFD);
@@ -365,9 +374,11 @@ void py_connector_send_locations_metadata(py_connector_t* self, GfsVariable* var
 
     for(size_t i = 0; i < locationsQty; ++i) {
         packet_t pkg;
-        packet_create(&pkg, sizeof(char), sizeof(uint32_t), sizeof(double), sizeof(double), sizeof(double), 0);
+        packet_create(&pkg, sizeof(char), sizeof(double), sizeof(int32_t), sizeof(uint32_t), sizeof(double), sizeof(double), sizeof(double), 0);
         char type = PKG_META_POSITION;
         packet_add(&pkg, &type);
+        packet_add(&pkg, &time);
+        packet_add(&pkg, &step);
         packet_add(&pkg, &locationsQty);
         packet_add(&pkg, &locations[i].x);
         packet_add(&pkg, &locations[i].y);
@@ -375,6 +386,13 @@ void py_connector_send_locations_metadata(py_connector_t* self, GfsVariable* var
         packet_send(&pkg, self->valuesFD);
         packet_destroy(&pkg);
     }
+}
+
+static void py_connector_get_step_time(py_connector_t* self, gint* step, double* time) {
+    if (!self->sim)
+        g_log (G_LOG_DOMAIN, G_LOG_LEVEL_WARNING,"No simulation defined before calling py_connector_get_value. System will resume and use controller results anyway assuming t=0.");
+    *step = self->sim ? self->sim->time.i : 0;
+    *time = self->sim ? self->sim->time.t : 0;
 }
 
 static void py_connector_check() {
@@ -406,14 +424,14 @@ double controller(char* function){
     return py_connector_get_value(&connector, function);
 }
 
-void pyConnectorSendForce(FttVector pf, FttVector vf, FttVector pm, FttVector vm, int step, double time){
+void pyConnectorSendForce(FttVector pf, FttVector vf, FttVector pm, FttVector vm){
     py_connector_check();
-    py_connector_send_force(&connector, pf, vf, pm, vm, step, time);
+    py_connector_send_force(&connector, pf, vf, pm, vm);
 }
 
-void pyConnectorSendLocation(char* var, double value, FttVector p, int step, double time){
+void pyConnectorSendLocation(char* var, double value, FttVector p){
     py_connector_check();
-    py_connector_send_location(&connector, var, value, p, step, time);
+    py_connector_send_location(&connector, var, value, p);
 }
 
 void pyConnectorSendLocationsMetadata(GfsVariable* variables, size_t variablesQty, FttVector* locations, size_t locationsQty) {

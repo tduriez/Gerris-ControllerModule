@@ -27,8 +27,8 @@ void py_connector_init(py_connector_t* self, gchar * tmpFolder, gchar * mainCont
 void py_connector_init_simulation(py_connector_t* self, GfsSimulation* sim);
 void py_connector_destroy(py_connector_t* self);
 double py_connector_get_value(py_connector_t* self, char* function);
-void py_connector_send_force(py_connector_t* self, FttVector pf, FttVector vf, FttVector pm, FttVector vm, int step, double time);
-void py_connector_send_location(py_connector_t* self, char* var, double value, FttVector p, int step, double time);
+void py_connector_send_force(py_connector_t* self, FttVector pf, FttVector vf, FttVector pm, FttVector vm);
+void py_connector_send_location(py_connector_t* self, char* var, double value, FttVector p);
 void py_connector_send_locations_metadata(py_connector_t* self, GfsVariable* variables, size_t variablesQty, FttVector* locations, size_t locationsQty);
 
 
@@ -55,7 +55,7 @@ double controller(char* function);
 /**
 * Send force values to external scripts via Python Communicator connection. Values are read by ControllerSolidForce in the external scripts.
 */
-void pyConnectorSendForce(FttVector pf, FttVector vf, FttVector pm, FttVector vm, int step, double time);
+void pyConnectorSendForce(FttVector pf, FttVector vf, FttVector pm, FttVector vm);
 
 /**
 * Send locations and variables metadata to prepare the receiver controller to collect the values properly.
@@ -65,6 +65,6 @@ void pyConnectorSendLocationsMetadata(GfsVariable* variables, size_t variablesQt
 /**
 * Send location values to external scripts via Python Communicator connection. Values are read by ControllerLocation in the external scripts.
 */
-void pyConnectorSendLocation(char* var, double value, FttVector p, int step, double time);
+void pyConnectorSendLocation(char* var, double value, FttVector p);
 
 #endif

@@ -92,7 +92,7 @@ static gboolean gfs_controller_solid_force_event (GfsEvent * event,
     gfs_domain_solid_force (domain, &pf, &vf, &pm, &vm, GFS_CONTROLLER_SOLID_FORCE (event)->weight);
 
     g_log (G_LOG_DOMAIN, G_LOG_LEVEL_INFO, "step=%d t=%.3f - Sending force information", sim->time.i, sim->time.t);
-    pyConnectorSendForce(pf,vf,pm,vm, sim->time.i, sim->time.t);
+    pyConnectorSendForce(pf,vf,pm,vm);
     return TRUE;
   }
   return FALSE;
@@ -350,7 +350,7 @@ static void do_send_locations(GfsSimulation* sim,
             for (guint iVariable = 0; iVariable < variablesQty; ++iVariable) {
                 GfsVariable* v = &nonEmptyVariables[iVariable];
                 double d = allValues[iIndex * variablesQty + iVariable];
-                pyConnectorSendLocation(v->name, d, p, sim->time.i, sim->time.t);
+                pyConnectorSendLocation(v->name, d, p);
             }
         }
     }
