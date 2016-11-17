@@ -3,14 +3,15 @@ import logging
 
 actuationStartTime = 42.
 velocityRef = 1.
-kProp = 1.7
-kInt = 0.021
+kProp = 1.75
+kInt = 0.023
 
-def velocityAbsErrorIntegrate(velocityRef, samples):
+def velocityAbsErrorIntegrate(velocityRef, samples, lastIterationTime):
     integral = 0;
     for time in samples.allTimes:
-        samplesAtTime = samples.samplesByTime(time)
-        integral += velocityAbsError(velocityRef, samplesAtTime)
+        if time < lastIterationTime:
+            samplesAtTime = samples.samplesByTime(time)
+            integral += velocityAbsError(velocityRef, samplesAtTime)
     return integral
 
 def velocityAbsError(velocityRef, samples):
@@ -27,12 +28,11 @@ def velocityAbsError(velocityRef, samples):
 def actuation(time, step, samples):
     global velocityRef, kProp, kInt, actuationStartTime
     act = 0.
-    if samples.currentStep and samples.currentStep == step:
-        if time >= actuationStartTime:
-            velError = velocityAbsError(velocityRef, samples.currentSamples)
-            velErrorInt = velocityAbsErrorIntegrate(velocityRef, samples)
-            act = kProp*velError + kInt*velErrorInt
-            logging.info('step=%d - t=%.3f - act=%.2f - e=%.2f - eInt=%.2f' % (step, time, act, velError, velErrorInt))
-    return 456.2
+    lastIterationTime = samples.getPreviousClosestTime(time)
+    if lastIterationTime >= actuationStartTime:
+        velError = velocityAbsError(velocityRef, samples.samplesByTime(lastIterationTime))
+        velErrorInt = velocityAbsErrorIntegrate(velocityRef, samples, lastIterationTime)
+        act = kProp*velError + kInt*velErrorInt
+        logging.info('step=%d - t=%.3f - act=%.2f - e=%.2f - eInt=%.2f' % (step, time, act, velError, velErrorInt))
     return act
 
