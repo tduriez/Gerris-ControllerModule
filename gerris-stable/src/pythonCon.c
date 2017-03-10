@@ -176,16 +176,23 @@ void py_connector_init(py_connector_t* self,
     self->worldRank = world_rank;
 #endif
 
-    size_t baseSize = strlen(self->tmpFolder) + 1;
-    size_t sendNameSize = baseSize + sizeof(DEFAULT_SEND_FIFO_NAME)+3;
-    size_t recvNameSize = baseSize + sizeof(DEFAULT_RECV_FIFO_NAME)+3;
-    size_t valuesNameSize = baseSize + sizeof(DEFAULT_VALUES_FIFO_NAME)+3;
+    GDateTime* now = g_date_time_new_now_local();
+    gchar* nowStr = g_date_time_format(now, "%Y%m%d_%H%M%S");
+    g_date_time_unref(now);
+    size_t baseSize = strlen(self->tmpFolder) + 1 + strlen(nowStr)+ 1;
+    size_t sendNameSize = baseSize + sizeof(DEFAULT_SEND_FIFO_NAME)+1+2+1;
+    size_t recvNameSize = baseSize + sizeof(DEFAULT_RECV_FIFO_NAME)+1+2+1;
+    size_t valuesNameSize = baseSize + sizeof(DEFAULT_VALUES_FIFO_NAME)+1+2+1;
     self->sendFifoName = (char*)malloc(sendNameSize);
     self->recvFifoName = (char*)malloc(recvNameSize);
     self->valuesFifoName = (char*)malloc(valuesNameSize);
-    snprintf(self->sendFifoName, sendNameSize, "%s/%s_%02d", self->tmpFolder, DEFAULT_SEND_FIFO_NAME, self->worldRank);
-    snprintf(self->recvFifoName, recvNameSize, "%s/%s_%02d", self->tmpFolder, DEFAULT_RECV_FIFO_NAME, self->worldRank);
-    snprintf(self->valuesFifoName, valuesNameSize, "%s/%s_%02d", self->tmpFolder, DEFAULT_VALUES_FIFO_NAME, self->worldRank);
+    snprintf(self->sendFifoName, sendNameSize, "%s/%s_%s_%02d", self->tmpFolder, DEFAULT_SEND_FIFO_NAME, nowStr, self->worldRank);
+    snprintf(self->recvFifoName, recvNameSize, "%s/%s_%s_%02d", self->tmpFolder, DEFAULT_RECV_FIFO_NAME, nowStr, self->worldRank);
+    snprintf(self->valuesFifoName, valuesNameSize, "%s/%s_%s_%02d", self->tmpFolder, DEFAULT_VALUES_FIFO_NAME, nowStr, self->worldRank);
+    self->sendFifoName[sendNameSize-1] = '\0';
+    self->recvFifoName[recvNameSize-1] = '\0';
+    self->valuesFifoName[valuesNameSize-1] = '\0';
+    g_free (nowStr);
 
     self->cache = g_hash_table_new(g_str_hash, g_str_equal);
 
