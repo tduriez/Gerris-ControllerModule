@@ -130,7 +130,7 @@ class SamplesData:
             return []
 
     def samplesByLocation(self, location):
-        if variable in self._probesByLocation:
+        if location in self._probesByLocation:
             return self._probesByLocation[location]
         else:
             return []
