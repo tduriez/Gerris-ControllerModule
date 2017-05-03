@@ -2,90 +2,88 @@
 
 import os
 import sys, getopt
-import imp
+import importlib
 import threading
 import logging
 import collections
-import FunctionController
-import ValuesController
+import re
+from communications import ControllerThread, CollectorThread, ExecutionContext
+from samples import SamplesData
 
-#communicate with another process through named pipes
-#one for receive command, the other for send command
-#one to receive values
+samplesWindow = 1
+procIndex = 0
 
-scriptPath = "./module"
-cant = 1
-mpiproc = 0
-
-callFifoFilepath = ''
-returnFifoFilepath = ''
-valuesFifoFilepath = ''
+#Communicate with another process through named pipes
+#one for receive command, the other for send command, and the last one to receive values
+callFifoPath = ''
+returnFifoPath = ''
+valuesFifoPath = ''
 
 
 try:
-	opts, args = getopt.getopt(sys.argv[1:],'', ['script=', 'samples=','mpiproc=', 'requestfifo=', 'returnfifo=', 'samplesfifo='])
+    opts, args = getopt.getopt(sys.argv[1:],'', ['script=', 'samples=','mpiproc=', 'requestfifo=', 'returnfifo=', 'samplesfifo=', 'loglevel='])
 except getopt.GetoptError:
-	sys.stderr.write("Python **: main.py --script <scriptFilepath> --samples <numberOfSamplesInControllingWindow> --mpiproc <processId> --requestfifo <filepath> --returnfifo <filepath> --samplesfifo <filepath>")
-	sys.exit(1)
+    sys.stderr.write("Python **: Error invoking main.py.\nSample command line: ./main.py --script <scriptFilepath> --samples <numberOfSamplesInControllingWindow> --mpiproc <processId> --requestfifo <filepath> --returnfifo <filepath> --samplesfifo <filepath> --loglevel (debug|info|warning|error)")
+    raise
 if not opts or len(opts) < 6:
-	sys.stderr.write("Python **: Error invoking main.py. Required arguments: --script --samples --mpiproc --requestfifo --returnfifo --samplesfifo")
-	sys.exit(2)
+    sys.stderr.write("Python **: Error invoking main.py. Required arguments: --script --samples --mpiproc --requestfifo --returnfifo --samplesfifo --loglevel")
+    sys.exit(1)
 for opt, arg in opts:
-	if opt == '--script':
-		scriptPath = arg
-	elif opt == '--samples':
-		cant = int(arg)
-	elif opt == '--mpiproc':
-		mpiproc = int(arg)
-	elif opt == '--requestfifo':
-		callFifoFilepath = arg
-	elif opt == '--returnfifo':
-		returnFifoFilepath = arg
-	elif opt == '--samplesfifo':
-		valuesFifoFilepath = arg
-
-
-logging.basicConfig(format='%(asctime)s Python %(levelname)s **: PE=' + str(mpiproc) + ' - %(message)s', level=logging.DEBUG)
-
-logging.info("Opening Gerris2Python FIFO at %s" % callFifoFilepath)
-callFifo = open(callFifoFilepath, 'r')
-logging.info("Opening Python2Gerris FIFO at %s" % returnFifoFilepath)
-returnFifo = open(returnFifoFilepath, 'w',0)
-logging.info("Opening Gerris2Python FIFO for actuation values at %s" % valuesFifoFilepath)
-valuesFifo = open(valuesFifoFilepath, 'r')
-value = 0
+    if opt == '--script':
+        userScript = arg
+    elif opt == '--samples':
+        samplesWindow = int(arg)
+    elif opt == '--mpiproc':
+        procIndex = int(arg)
+    elif opt == '--requestfifo':
+        callFifoPath = arg
+    elif opt == '--returnfifo':
+        returnFifoPath = arg
+    elif opt == '--samplesfifo':
+        valuesFifoPath = arg
+    elif opt == '--loglevel':
+        logLevelStr = arg
+try:
+    logLevel = getattr(logging, logLevelStr.upper())
+except AttributeError:
+    sys.stderr.write("Python **: Error configuring logging level to: %s. Valid values are 'debug', 'info', 'warning', 'error'" % logLevelStr)
+    raise
+logging.basicConfig(format='%(asctime)s Python %(levelname)s **: PE=' + str(procIndex) + ' - %(message)s', level=logLevel)
 
 # Load functions defined by user.
-foo = imp.load_source('script', scriptPath)
+scriptMatch = re.match(r'^(.*)/(.*)\.py$', userScript)
+if not scriptMatch:
+    msg = "The given user script location is not valid. Provided path: %s. Expected pattern: <module-folder>/<filename>.py" % userScript
+    logging.error(msg)
+    raise ValueError(msg)
 
+controllerFolder = scriptMatch.group(1)
+controllerModuleName = scriptMatch.group(2)
+sys.path.append(controllerFolder)
+controlFunc = importlib.import_module(controllerModuleName)
 
-forcesValues = collections.deque()
-locationsValues = collections.deque()
-lock = threading.Lock()
+samples = SamplesData(samplesWindow)
+context = ExecutionContext(procIndex, callFifoPath, returnFifoPath, valuesFifoPath)
+with context:
+    # Create Values and Function threads.
+    collector = CollectorThread(samples, context)
+    controller = ControllerThread(samples, controlFunc, context)
+    context.register(collector)
+    context.register(controller)
 
-# Create Values and Function threads.
-valuesThread = ValuesController.ValuesController(valuesFifo,\
-		forcesValues,\
-		locationsValues,\
-		lock,\
-		cant)
-												
-callThread = FunctionController.FunctionController(callFifo,\
-						returnFifo,\
-						foo,\
-						lock,\
-						forcesValues,\
-						locationsValues)
+    collector.start()
+    controller.start()
+    try:
+        collector.join()
+        controller.join()
+        logging.info("Python server finished")
+    except KeyboardInterrupt:
+        logging.error("Keyboard signal detected. Aborting tasks to close the server...")
+        context.notifyError('Keyboard signal detected.')
+        context.terminateOnErrors()
+    except Exception as e:
+        logging.error("Closing with errors: %s" % e)
+        context.notifyError('Closing with errors.', e)
+        contxt.terminateOnErrors()
 
-valuesThread.start()
-callThread.start()
-
-valuesThread.join()
-callThread.join()
-
-logging.info("Closing FIFOS")
-callFifo.close()
-returnFifo.close()
-valuesFifo.close()
-logging.info("Python server finished")
 
