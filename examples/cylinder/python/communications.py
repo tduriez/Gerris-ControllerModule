@@ -7,6 +7,7 @@ from struct import *
 from samples import Sample, ForceData, ProbeData
 from enum import Enum
 
+_readTimeoutSecs = 10
 _normalizeRegex = re.compile('^[_\-\w\d]+');
 def _normalizeKeyword(string):
     result = _normalizeRegex.match(string)
@@ -16,19 +17,35 @@ def _normalizeKeyword(string):
         raise SyntaxError('It was not possible to identify a valid keyword in the received ' \
                         'string. Try with only digits and letters. Received string: "%r"' % string)
 
-def _readBlock(f, blockSize):
-    readBytes = 0
-    result = ''
-    while readBytes < blockSize:
-        partResult = f.read(blockSize - readBytes)
-        partReadBytes = len(partResult)
-        if partReadBytes == 0:
-            return None
-        else:
-            readBytes += partReadBytes
-            result += partResult
-    logging.debug("Receiving %d bytes block: %r" % (blockSize, result))
-    return result
+class BlocksReader:
+    def __init__(self, fileToRead):
+        self.f = fileToRead
+        self.fd = fileToRead.fileno()
+        self.closed = False
+        self.__clearBuffer()
+
+    def readBlock(self, blockSize):
+        while self.bufferReadBytes < blockSize:
+            r, w, x = select.select([self.fd], [], [], _readTimeoutSecs)
+            if self.fd not in r:
+                return ''
+            else:
+                partResult = self.f.read(blockSize - self.bufferReadBytes)
+                partReadBytes = len(partResult)
+                if partReadBytes == 0:
+                    self.closed = True
+                    return ''
+                else:
+                    self.buffer += partResult
+                    self.bufferReadBytes += partReadBytes
+        result = self.buffer
+        self.__clearBuffer()
+        logging.debug("Receiving %d bytes block: %r" % (blockSize, result))
+        return result
+
+    def __clearBuffer(self):
+        self.buffer = ''
+        self.bufferReadBytes = 0
 
 class ExecutionContext:
     def __init__(self, procIndex, callFifoPath, returnFifoPath, valuesFifoPath):
@@ -130,14 +147,13 @@ class ControllerThread(threading.Thread):
         self.defaultActuation = 0.0
 
     def run(self):
+        reader = BlocksReader(self.context.callFifo)
         try:
             self._initControlModule()
-            while fifoOpened and not self.context.errorsDetected:
-                logging.debug("ControllerThread - Waiting for call request... %d bytes" % self.Request.size)
-                query = _readBlock(self.callFifo, self.Request.size)
-                if query is None:
-                    fifoOpened = False
-                else:
+            while not reader.closed and not self.context.errorsDetected:
+                logging.debug("Controller - Waiting for call request... %d bytes" % self.Request.size)
+                query = reader.readBlock(self.Request.size)
+                if query:
                     self._processRequest(query)
             logging.info('Call requests FIFO closed. Finishing controller...')
         except Exception as e:
@@ -249,28 +265,28 @@ class CollectorThread(threading.Thread):
             }
 
     def run(self):
-        fifoOpened = True
+        valuesReader = BlocksReader(self.context.valuesFifo)
         try:
-            while fifoOpened and not self.context.errorsDetected:
-                logging.debug("CollectorThread- Waiting for samples information...")
-                pkgType = _readBlock(self.valuesFifo, 1)
-                if pkgType is None:
-                    fifoOpened = False
-                else:
+            while not valuesReader.closed and not self.context.errorsDetected:
+                logging.debug("Collector- Waiting for samples information...")
+                pkgType = valuesReader.readBlock(1)
+                if pkgType:
                     pkgTypeId = ord(pkgType)
                     logging.debug("Collector- Receiving package type: %d - %r" % (pkgTypeId, pkgType))
-                    self._processPacket(pkgTypeId)
+                    self._processPacket(valuesReader, pkgTypeId)
             logging.info('Collector - Samples information FIFO closed. Finishing controller...')
         except Exception as e:
             self.context.notifyError('Collector - Closing with errors. %s' % e, e)
 
-    def _processPacket(self, pkgTypeId):
+    def _processPacket(self, valuesReader, pkgTypeId):
         try:
             typeMap = self.pkgTypesMap[pkgTypeId]
             structType = typeMap['struct']
             handler = typeMap['handler']
 
-            query = _readBlock(self.valuesFifo, structType.size)
+            query = ''
+            while not query and not valuesReader.closed:
+                query = valuesReader.readBlock(structType.size)
             querySt = structType.unpack(query)
             handler(querySt)
         except KeyError:
