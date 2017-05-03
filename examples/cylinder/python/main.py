@@ -11,13 +11,13 @@ from communications import ControllerThread, CollectorThread, ExecutionContext
 from samples import SamplesData
 
 samplesWindow = 1
-mpiproc = 0
+procIndex = 0
 
 #Communicate with another process through named pipes
 #one for receive command, the other for send command, and the last one to receive values
-callFifoFilepath = ''
-returnFifoFilepath = ''
-valuesFifoFilepath = ''
+callFifoPath = ''
+returnFifoPath = ''
+valuesFifoPath = ''
 
 
 try:
@@ -34,13 +34,13 @@ for opt, arg in opts:
     elif opt == '--samples':
         samplesWindow = int(arg)
     elif opt == '--mpiproc':
-        mpiproc = int(arg)
+        procIndex = int(arg)
     elif opt == '--requestfifo':
-        callFifoFilepath = arg
+        callFifoPath = arg
     elif opt == '--returnfifo':
-        returnFifoFilepath = arg
+        returnFifoPath = arg
     elif opt == '--samplesfifo':
-        valuesFifoFilepath = arg
+        valuesFifoPath = arg
     elif opt == '--loglevel':
         logLevelStr = arg
 try:
@@ -48,15 +48,7 @@ try:
 except AttributeError:
     sys.stderr.write("Python **: Error configuring logging level to: %s. Valid values are 'debug', 'info', 'warning', 'error'" % logLevelStr)
     raise
-logging.basicConfig(format='%(asctime)s Python %(levelname)s **: PE=' + str(mpiproc) + ' - %(message)s', level=logLevel)
-
-logging.info("Opening Gerris2Python FIFO at %s" % callFifoFilepath)
-callFifo = open(callFifoFilepath, 'r')
-logging.info("Opening Python2Gerris FIFO at %s" % returnFifoFilepath)
-returnFifo = open(returnFifoFilepath, 'w',0)
-logging.info("Opening Gerris2Python FIFO for actuation values at %s" % valuesFifoFilepath)
-valuesFifo = open(valuesFifoFilepath, 'r')
-value = 0
+logging.basicConfig(format='%(asctime)s Python %(levelname)s **: PE=' + str(procIndex) + ' - %(message)s', level=logLevel)
 
 # Load functions defined by user.
 scriptMatch = re.match(r'^(.*)/(.*)\.py$', userScript)
@@ -71,22 +63,27 @@ sys.path.append(controllerFolder)
 controlFunc = importlib.import_module(controllerModuleName)
 
 samples = SamplesData(samplesWindow)
-context = ExecutionContext()
+context = ExecutionContext(procIndex, callFifoPath, returnFifoPath, valuesFifoPath)
+with context:
+    # Create Values and Function threads.
+    collector = CollectorThread(samples, context)
+    controller = ControllerThread(samples, controlFunc, context)
+    context.register(collector)
+    context.register(controller)
 
-# Create Values and Function threads.
-collectorThread = CollectorThread(valuesFifo, samples, context)
-controllerThread = ControllerThread(callFifo, returnFifo, samples, controlFunc, context)
+    collector.start()
+    controller.start()
+    try:
+        collector.join()
+        controller.join()
+        logging.info("Python server finished")
+    except KeyboardInterrupt:
+        logging.error("Keyboard signal detected. Aborting tasks to close the server...")
+        context.notifyError('Keyboard signal detected.')
+        context.terminateOnErrors()
+    except Exception as e:
+        logging.error("Closing with errors: %s" % e)
+        context.notifyError('Closing with errors.', e)
+        contxt.terminateOnErrors()
 
-collectorThread.start()
-controllerThread.start()
-try:
-    collectorThread.join()
-    controllerThread.join()
-    logging.info("Simulation finished. Closing FIFOs...")
-    callFifo.close()
-    returnFifo.close()
-    valuesFifo.close()
-    logging.info("Python server finished")
-except KeyboardInterrupt:
-    logging.error("Keyboard signal detected. Aborting tasks to close the server...")
-    raise
+

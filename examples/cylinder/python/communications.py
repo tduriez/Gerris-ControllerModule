@@ -1,4 +1,5 @@
 import threading
+import select
 import struct
 import logging
 import re
@@ -30,7 +31,8 @@ def _readBlock(f, blockSize):
     return result
 
 class ExecutionContext:
-    def __init__(self):
+    def __init__(self, procIndex, callFifoPath, returnFifoPath, valuesFifoPath):
+        self.procIndex = procIndex
         self.lock = threading.Lock()
         self.samplesCond = threading.Condition(self.lock)
         self.errorsDetected = False
@@ -41,6 +43,26 @@ class ExecutionContext:
         self.totalPositionsQty = 0
         self.variables = []
         self.positions = []
+        self.processes = []
+        self.callFifoPath = callFifoPath
+        self.returnFifoPath = returnFifoPath
+        self.valuesFifoPath = valuesFifoPath
+
+    def __enter__(self):
+        logging.info("Opening Gerris2Python FIFO at %s" % self.callFifoPath)
+        self.callFifo = open(self.callFifoPath, 'r')
+        logging.info("Opening Python2Gerris FIFO at %s" % self.returnFifoPath)
+        self.returnFifo = open(self.returnFifoPath, 'w',0)
+        logging.info("Opening Gerris2Python FIFO for actuation values at %s" % self.valuesFifoPath)
+        self.valuesFifo = open(self.valuesFifoPath, 'r')
+
+    def __exit__(self, type, value, traceback):
+        if not self.errorsDetected:
+            logging.info("Simulation finished. Closing FIFOs...")
+            self.__closeFiles()
+
+    def register(self, process):
+        self.processes.append(process)
 
     def clearMetaOnNewStep(self, step):
         with self.lock:
@@ -66,37 +88,50 @@ class ExecutionContext:
         if len(self.variables) < totalVariablesQty:
             self.variables.append(variable)
         else:
-            logging.error("Error detected in variables metadata. Variables exceed the total Qty.: %d" % totalVariablesQty)
+            msg = "Error detected in variables metadata. Variables exceed the total Qty.: %d" % totalVariablesQty
+            raise ValueError(msg)
 
     def addPosition(self, position, totalPositionsQty):
         self.totalPositionsQty = totalPositionsQty
         if len(self.positions) < totalPositionsQty:
             self.positions.append(position)
         else:
-            logging.error("Error detected in positions metadata. Positions exceed the total Qty.: %d" % totalPositionsQty)
+            msg = "Error detected in positions metadata. Positions exceed the total Qty.: %d" % totalPositionsQty
+            raise ValueError(msg)
+
+    def notifyError(self, message, exception):
+        if exception:
+            logging.error(message, exc_info = True)
+        else:
+            logging.error(message)
+        self.errorsDetected = True
+        self.__closeFiles()
+
+    def __closeFiles(self):
+        self.valuesFifo.close()
+        self.returnFifo.close()
+        self.callFifo.close()
 
 class ControllerMode(Enum):
-    preSampling = 1
-    postSampling = 2
+    usingPreviousClosestTimeSamples = 1
+    usingCurrentSamples = 2
 
 # Thread for waiting for a call from gerris, execute the controller and return the result.
 class ControllerThread(threading.Thread):
     Request = Struct('di60s')
     Response = Struct('d')
 
-    def __init__(self, callFifo, returnFifo, samples, controlModule, context):
+    def __init__(self, samples, controlModule, context):
         super(ControllerThread,self).__init__()
-        self.callFifo = callFifo
-        self.returnFifo = returnFifo
         self.samples = samples
         self.controlModule = controlModule
         self.context = context
-        self.mode = ControllerMode.preSampling
+        self.mode = ControllerMode.usingPreviousClosestTimeSamples
         self.defaultActuation = 0.0
 
     def run(self):
-        fifoOpened = True
         try:
+            self._initControlModule()
             while fifoOpened and not self.context.errorsDetected:
                 logging.debug("ControllerThread - Waiting for call request... %d bytes" % self.Request.size)
                 query = _readBlock(self.callFifo, self.Request.size)
@@ -106,8 +141,26 @@ class ControllerThread(threading.Thread):
                     self._processRequest(query)
             logging.info('Call requests FIFO closed. Finishing controller...')
         except Exception as e:
-            logging.exception('ControllerThread - Closing with errors')
-            self.context.errorsDetected = True
+            self.context.notifyError('Controller - Closing with errors: %s' % e, e)
+        finally:
+            self._destroyControlModule()
+
+    def _initControlModule(self):
+        init = self._getFunction('init')
+        if init:
+            init(self.context.procIndex)
+
+    def _destroyControlModule(self):
+        try:
+            destroy = self._getFunction('destroy')
+        except AttributeError:
+            destroy = None
+        if destroy:
+            try:
+                logging.info('Closing python user controller module...')
+                destroy(self.context.procIndex)
+            except Exception as e:
+                logging.error('Error detected during python user controller module closure: %s' % e)
 
     def _processRequest(self, query):
         try:
@@ -118,54 +171,58 @@ class ControllerThread(threading.Thread):
 
             skipControl = False
             with self.context.lock:
-                allTimesQty = len(self.samples.allTimes)
                 expectedSamples = self.context.totalVariablesQty * self.context.totalPositionsQty
-                if expectedSamples == 0 or allTimesQty == 0:
-                    skipControl = True
-                    logging.debug('ControllerThread - Skipping control actuation because of lack of sampling information or expected variables. SamplesQty=%d ExpectedSamples=%d'
-                                  % (allTimesQty, expectedSamples))
-                else:
-                    if self.mode is ControllerMode.preSampling:
-                        samplesTime = self.samples.getPreviousClosestTime(time)
-                        if samplesTime is None:
-                            skipControl = True
-                            logging.debug('ControllerThread - Skipping control actuation because of lack of sampling information prior to current step was detected. Time=%.3f'
-                                          % time)
-                        else:
-                            samplesQty = len(self.samples.samplesByTime(samplesTime))
-                    else: #ControllerMode.postSampling
-                        samplesTime = time
-                        if self.samples.getClosestTime(time) != time:
-                            samplesQty = 0
-                        else:
-                            samplesQty = len(self.samples.samplesByTime(time))
-                    if not skipControl and samplesQty < expectedSamples:
-                        logging.info('ControllerThread - Waiting for pending samples to be received. CurrentTime=%.3f SamplesTime=%.3f ControllerMode=%s Received=%d Expected=%d'
-                                     % (time, samplesTime, self.mode.name, samplesQty, expectedSamples))
-                        self.context.samplesCond.wait()
+                if expectedSamples > 0:
+                    allTimesQty = len(self.samples.allTimes)
+                    if allTimesQty == 0:
+                        skipControl = True
+                        logging.debug('Controller - Skipping control actuation because of lack of sampling information or expected variables. SamplesQty=%d ExpectedSamples=%d'
+                                      % (allTimesQty, expectedSamples))
+                    else:
+                        if self.mode is ControllerMode.usingPreviousClosestTimeSamples:
+                            samplesTime = self.samples.getPreviousClosestTime(time)
+                            if samplesTime is None:
+                                skipControl = True
+                                logging.debug('Controller - Skipping control actuation because of lack of sampling information prior to current step was detected. Time=%.3f'
+                                              % time)
+                            else:
+                                samplesQty = len(self.samples.samplesByTime(samplesTime))
+                        else: #ControllerMode.usingCurrentSamples
+                            samplesTime = time
+                            if self.samples.currentTime != time:
+                                samplesQty = 0
+                            else:
+                                samplesQty = len(self.samples.currentSamples)
+                        if not skipControl and samplesQty < expectedSamples:
+                            logging.info('Controller - Waiting for pending samples to be received. CurrentTime=%.3f SamplesTime=%.3f ControllerMode=%s Received=%d Expected=%d'
+                                         % (time, samplesTime, self.mode.name, samplesQty, expectedSamples))
+                            self.context.samplesCond.wait()
 
             if skipControl:
                 result = self.defaultActuation
             else:
-                func = self._get_function(funcName)
+                func = self._getFunction(funcName)
                 with self.context.lock:
                     result = func(time, step, self.samples)
             s = self.Response.pack(result)
 
-            logging.debug("ControllerThread - Returning controller result - step=%d - t=%.3f - function=%s - result=%f"
+            logging.debug("Controller - Returning controller result - step=%d - t=%.3f - function=%s - result=%f"
                             % (step, time, funcName, result))
-            self.returnFifo.write(s)
+            self.context.returnFifo.write(s)
         except struct.error as e:
             logging.error('Parsing error. Invalid struct data received. Data=%s', query)
             raise
 
-    def _get_function(self, funcName):
-        logging.debug("ControllerThread - Calling controller - Module=%s Function=\"%r\"" % (self.controlModule, funcName))
+    def _getFunction(self, funcName, failOnError=True):
+        logging.debug("Controller - Calling controller - Module=%s Function=\"%r\"" % (self.controlModule, funcName))
         try:
             return getattr(self.controlModule, funcName)
         except AttributeError:
             logging.error("Function \"%r\" not found at \"%s\". DetectedFunctions=%s" % (funcName, self.controlModule, dir(self.controlModule)))
-            raise
+            if failOnError:
+                raise
+            else:
+                return None
 
 # Thread for reading the sent values from gerris.
 class CollectorThread(threading.Thread):
@@ -179,9 +236,8 @@ class CollectorThread(threading.Thread):
     LocationMetaVariable = Struct('=dii28s')
     LocationMetaPosition = Struct('=dii3d')
 
-    def __init__(self, valuesFifo, samples, context):
+    def __init__(self, samples, context):
         super(CollectorThread,self).__init__()
-        self.valuesFifo = valuesFifo
         self.samples = samples
         self.context = context
 
@@ -202,12 +258,11 @@ class CollectorThread(threading.Thread):
                     fifoOpened = False
                 else:
                     pkgTypeId = ord(pkgType)
-                    logging.info("CollectorThread- Receiving package type: %d - %r" % (pkgTypeId, pkgType))
+                    logging.debug("Collector- Receiving package type: %d - %r" % (pkgTypeId, pkgType))
                     self._processPacket(pkgTypeId)
-            logging.info('CollectorThread - Samples information FIFO closed. Finishing controller...')
+            logging.info('Collector - Samples information FIFO closed. Finishing controller...')
         except Exception as e:
-            logging.exception('CollectorThread - Closing with errors')
-            self.context.errorsDetected = True
+            self.context.notifyError('Collector - Closing with errors. %s' % e, e)
 
     def _processPacket(self, pkgTypeId):
         try:
@@ -236,7 +291,7 @@ class CollectorThread(threading.Thread):
         pm = (querySt[8],querySt[9],querySt[10])
         vm = (querySt[11],querySt[12],querySt[13])
         sample = Sample(time, step, ForceData(pf, vf, pm, vm))
-        logging.debug("CollectorThread- Handling force value. step=%d - time=%.3f - pf=%s - ..."
+        logging.debug("Collector- Handling force value. step=%d - time=%.3f - pf=%s - ..."
                       % (step, time, pf))
         with self.context.lock:
             self.samples.addForce(sample)
@@ -248,14 +303,14 @@ class CollectorThread(threading.Thread):
         (variable, position) = self.context.nextVariableAndPosition()
 
         sample = Sample(time, step, ProbeData(position, variable, value))
-        logging.info("CollectorThread- Handling position value. step=%d - time=%.3f - position=%s - variable=%s - value=%f"
+        logging.debug("Collector- Handling position value. step=%d - time=%.3f - position=%s - variable=%s - value=%f"
                       % (step, time, position, variable, value))
 
         with self.context.lock:
             self.samples.addProbe(sample)
             expectedSamples = self.context.totalVariablesQty * self.context.totalPositionsQty
             if len(self.samples.currentSamples) == expectedSamples:
-                logging.info("CollectorThreadi - Notifying all samples received for time: %.3f. Qty: %d" % (time, expectedSamples))
+                logging.info("Collector - Notifying all samples received for time: %.3f. Qty: %d" % (time, expectedSamples))
                 self.context.samplesCond.notify()
 
     def handleMetaPosition(self, querySt):
@@ -266,7 +321,7 @@ class CollectorThread(threading.Thread):
 
         self.context.clearMetaOnNewStep(step)
         self.context.addPosition(position, totalPositionsQty)
-        logging.info("CollectorThread- Handling meta position. Position=(%.3f, %.3f, %.3f) - TotalPositions=%d" % (position[0], position[1], position[2], totalPositionsQty))
+        logging.info("Collector- Handling meta position. Position=(%.3f, %.3f, %.3f) - TotalPositions=%d" % (position[0], position[1], position[2], totalPositionsQty))
 
     def handleMetaVariable(self, querySt):
         time = querySt[0]
@@ -276,5 +331,5 @@ class CollectorThread(threading.Thread):
 
         self.context.clearMetaOnNewStep(step)
         self.context.addVariable(variable, totalVariablesQty)
-        logging.info("CollectorThread- Handling meta variable. Variable=%s - TotalVariables=%d" % (variable, totalVariablesQty))
+        logging.info("Collector- Handling meta variable. Variable=%s - TotalVariables=%d" % (variable, totalVariablesQty))
 

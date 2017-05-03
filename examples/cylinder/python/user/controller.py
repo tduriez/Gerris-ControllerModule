@@ -36,3 +36,8 @@ def actuation(time, step, samples):
         logging.info('step=%d - t=%.3f - act=%.2f - e=%.2f - eInt=%.2f' % (step, time, act, velError, velErrorInt))
     return act
 
+def init(proc_index):
+    pass
+
+def destroy(proc_index):
+    pass
