@@ -26,6 +26,13 @@
 extern "C" {
 #endif /* __cplusplus */
 
+#ifndef G_DEBUG
+ #define G_DEBUG "info"
+ #pragma message "warning: No G_DEBUG definition detected during compilation.\n\nDefault value set to: info. \n" \
+    "You can change it by adding the proper compilation flag. i.e.: \n\n" \
+    "make CFLAGS='-ggdb -Og -DG_DEBUG=\\\"debug\\\"'"
+#endif
+
 GtsObjectClass ** gfs_classes             (void);
 void              gfs_init_log (const gchar *logDomain,
                                 const gchar *logLevels);

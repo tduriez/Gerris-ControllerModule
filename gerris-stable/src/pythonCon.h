@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <glib.h>
 #include "simulation.h"
+#include "init.h"
 
 typedef struct {
   gchar * tmpFolder;
