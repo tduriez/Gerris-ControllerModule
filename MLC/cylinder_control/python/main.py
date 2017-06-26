@@ -1,4 +1,4 @@
-#!/home/pablo/workspace/miniconda2/bin/python
+#! /usr/bin/python
 
 import os
 import sys, getopt
