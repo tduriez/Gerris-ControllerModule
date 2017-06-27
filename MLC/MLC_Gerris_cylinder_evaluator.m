@@ -1,19 +1,19 @@
 function J=MLC_Gerris_cylinder_evaluator(idv,parameters,i,fig)
     %% Variable grocery
-    TControlStart=MLC_parameters.problem_variables.control_time;
-    PythonScript=MLC_parameters.problem_variables.Python_script;
-    ActMax=MLC_parameters.problem_variables.actmax;
-
+    curdir=pwd;
 
 
     %% Setting up the simulation
-    out=xSetFinalTime(parameters);
-    out=xSetActuator(parameters);
-    out=xSetMeasurement(parameters);
+    xSetFinalTime(parameters.problem_variables,parameters.verbose>2);
+    xSetActuator(idv,parameters);
     
     try
     
     %% Simulation
+    cd(parameters.problem_variables.SimDirectory)
+    system('./exec_from_steady_state.sh')
+    
+    cd (curdir)
     
         
      
