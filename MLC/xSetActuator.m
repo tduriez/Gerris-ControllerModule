@@ -19,9 +19,9 @@ fprintf(fid,'import os, os.path\n');
 fprintf(fid,'import time\n');
 fprintf(fid,'\n');
 
-fprintf(fid,'def custom_filter_inputs(all_samples):\n');
+fprintf(fid,'def custom_filter_inputs(all_samples,completed_time):\n');
 fprintf(fid,'    values = [s.data.value for s in all_samples\n');
-fprintf(fid,'                           if s.data.variable == ''T'' and s.data.location == (3, 1, 0) and s.time > 60.0\n');
+fprintf(fid,'                           if s.data.variable == ''T'' and s.time == completed_time\n');
 fprintf(fid,'             ]\n');
 fprintf(fid,'    return values\n');
 fprintf(fid,'\n');
@@ -41,8 +41,9 @@ fprintf(fid,'def actuation(time, step, samples):\n');
 fprintf(fid,'    act = 0\n');
 fprintf(fid,'    completed_time = samples.getPreviousClosestTime(time)\n');
 fprintf(fid,'    if completed_time:\n');
+fprintf(fid,'        S = S = custom_filter_inputs(samples.all,completed_time)\n');
 for i=1:8
-fprintf(fid,'        S%d = samples.samplesByLocation( (%d) )\n',i-1,i-1);
+fprintf(fid,'        S%d = S[%d]\n',i-1,i-1);
 end
 %fprintf(fid,'        filtered_samples = samples.samplesByTime(completed_time)\n');
 %fprintf(fid,'        filtered_samples = samples.samplesByVariable(''T'')\n');

@@ -36,7 +36,7 @@
   #} T
   OutputTime { step = 1 } stdout
   OutputSolidForce { step = DT } results/forces.txt
-  OutputSimulation { step = 10 } results/cylinder_%07.3f.gfs { variables = U,V,P,T }
+  OutputSimulation { step = 10 } results/cylinder_%07.3f.gfs { variables = U,V,P,T binary = 0} 
   OutputLocation { step=DT } results/sensors.txt sensorsXYZ
   ControllerLocation { step = DT } { 
       samples-window = 99 

@@ -102,7 +102,7 @@ static int negative_quad_symmetric_refinement(double x, double y) {
   GfsAdaptVorticity { istep = 5 } { minlevel = (x < 0 ? positive_quad_symmetric_refinement(x, y) : REFINE_MIN) maxlevel = (x < 0 ? positive_quad_symmetric_refinement(x, y) : REFINE_MAX) cmax = 0.1 }
   GfsOutputTime { step = 1 } stdout
   GfsOutputSolidForce { step = 0.025 } results/forces.txt
-  GfsOutputSimulation { step = 10 } results/cylinder_%07.3f.gfs { variables = U,V,P,T }
+  GfsOutputSimulation { step = 10 } results/cylinder_%07.3f.gfs { variables = U,V,P,T binary = 0 }
   GfsOutputLocation { step = 0.025 } results/sensors.txt {
 3 1 0
 3 -1 0
