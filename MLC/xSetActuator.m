@@ -1,5 +1,8 @@
-function xSetActuator(idv,parameters)
-ControllerFile=fullfile(parameters.problem_variables.SimDirectory,'python','user','controller.py');
+function xSetActuator(idv,parameters,WorkerID)
+if nargin <3
+    WorkerID=[];
+end
+ControllerFile=fullfile(sprintf('%s%d',parameters.problem_variables.SimDirectory,WorkerID),'python','user','controller.py');
 if exist(ControllerFile,'file')
     delete(ControllerFile)
     while exist(ControllerFile,'file')

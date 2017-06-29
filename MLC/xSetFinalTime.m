@@ -1,8 +1,11 @@
-function xSetFinalTime(parameters,verbose)
+function xSetFinalTime(parameters,verbose,WorkerID)
 if nargin <2
     verbose=0;
 end
-GfsFile=fullfile(parameters.SimDirectory,parameters.GfsFile);
+if nargin <3
+    WorkerID=[];
+end
+GfsFile=fullfile(sprintf('%s%d',parameters.SimDirectory,WorkerID),parameters.GfsFile);
 
 if exist(GfsFile,'file')    
     delete(GfsFile)
