@@ -42,7 +42,7 @@
         %%  Evaluator parameters 
         %parameters.evaluation_method='standalone_function';
         %parameters.evaluation_method='standalone_files';
-        parameters.evaluation_method='mfile_multi';
+        parameters.evaluation_method='mfile_standalone';
         parameters.evaluation_function='MLC_Gerris_cylinder_evaluator';
         parameters.indfile='ind.dat';
         parameters.Jfile='J.dat';

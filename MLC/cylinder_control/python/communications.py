@@ -224,13 +224,12 @@ class ControllerProcess(threading.Thread):
                                          % (time, samplesTime, self.mode.name, samplesQty, expectedSamples))
                             self.context.samplesCond.wait()
 
-            if skipControl:
-                result = self.defaultActuation
-            else:
-                func = self._getFunction(funcName)
-                with self.context.lock:
+                if skipControl:
+                    result = self.defaultActuation
+                else:
+                    func = self._getFunction(funcName)
                     result = func(time, step, self.samples)
-            s = self.Response.pack(result)
+                s = self.Response.pack(result)
 
             logging.debug("Controller - Returning controller result - step=%d - t=%.3f - function=%s - result=%f"
                             % (step, time, funcName, result))

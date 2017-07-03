@@ -1,4 +1,4 @@
-function J=xGetJValue(idv,parameters,WorkerID)
+function [t,x,y,s,b,dJa,dJb]=xGetResults(idv,parameters,WorkerID)
     if nargin <3
         WorkerID=[];
     end
@@ -15,11 +15,11 @@ function J=xGetJValue(idv,parameters,WorkerID)
     t=reshape(A.data(:,1),8,n/8)';
     t=t(:,1);
     s=reshape(A.data(:,9),8,n/8)';
-    x=A.data(1:8,2)
-    y=A.data(1:8,3)
-    figure(667)
+    x=A.data(1:8,2);
+    y=A.data(1:8,3);
+    
    
-    J=0
+    
     cd(curdir)
     dJa=sum(s,2);
     
@@ -33,18 +33,7 @@ function J=xGetJValue(idv,parameters,WorkerID)
     
     dJb=b.^2;
     
-    subplot(4,1,1)
-    plot(t,s)
-    
-    subplot(4,1,2)
-    plot(t,b)
-    
-    subplot(4,1,3)
-    plot(t,dJa,t,dJb);
-    
-    subplot(4,1,4)
-    plot(t,cumtrapz(t,dJa),t,cumtrapz(t,dJb),...
-    t,cumtrapz(t,dJa+parameters.problem_variables.gamma*dJb));
+  
     
     
     
