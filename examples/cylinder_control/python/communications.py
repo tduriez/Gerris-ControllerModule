@@ -25,23 +25,31 @@ class BlocksReader:
         self.__clearBuffer()
 
     def readBlock(self, blockSize):
+        logging.debug('Receiving %d bytes block...' % blockSize)
         while self.bufferReadBytes < blockSize:
-            r, w, x = select.select([self.fd], [], [], _readTimeoutSecs)
+            try:
+                r, w, x = select.select([self.fd], [], [], _readTimeoutSecs)
+            except select.error:
+                return self.__returnOnClosed()
+
             if self.fd not in r:
                 return ''
             else:
                 partResult = self.f.read(blockSize - self.bufferReadBytes)
                 partReadBytes = len(partResult)
                 if partReadBytes == 0:
-                    self.closed = True
-                    return ''
+                    return self.__returnOnClosed()
                 else:
                     self.buffer += partResult
                     self.bufferReadBytes += partReadBytes
         result = self.buffer
         self.__clearBuffer()
-        logging.debug("Receiving %d bytes block: %r" % (blockSize, result))
         return result
+
+    def __returnOnClosed(self):
+        self.closed = True
+        logging.debug('Closed file detected')
+        return ''
 
     def __clearBuffer(self):
         self.buffer = ''
@@ -287,8 +295,9 @@ class CollectorThread(threading.Thread):
             query = ''
             while not query and not valuesReader.closed:
                 query = valuesReader.readBlock(structType.size)
-            querySt = structType.unpack(query)
-            handler(querySt)
+            if not valuesReader.closed:
+                querySt = structType.unpack(query)
+                handler(querySt)
         except KeyError:
                 msg = 'Invalid struct type. Type=%d is not recognized as a valid package. Available types: %s'\
                        % (pkgTypeId, self.pkgTypesMap.keys())
