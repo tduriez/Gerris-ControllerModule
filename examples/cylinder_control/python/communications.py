@@ -5,7 +5,6 @@ import logging
 import re
 from struct import *
 from samples import Sample, ForceData, ProbeData
-from enum import Enum
 
 _readTimeoutSecs = 10
 _normalizeRegex = re.compile('^[_\-\w\d]+');
@@ -77,9 +76,9 @@ class ExecutionContext:
         logging.info("Opening Gerris2Python FIFO at %s" % self.callFifoPath)
         self.callFifo = open(self.callFifoPath, 'r')
         logging.info("Opening Python2Gerris FIFO at %s" % self.returnFifoPath)
-        self.returnFifo = open(self.returnFifoPath, 'w',0)
+        self.returnFifo = open(self.returnFifoPath, 'w', 0)
         logging.info("Opening Gerris2Python FIFO for actuation values at %s" % self.valuesFifoPath)
-        self.valuesFifo = open(self.valuesFifoPath, 'r')
+        self.valuesFifo = open(self.valuesFifoPath, 'r', 0)
 
     def __exit__(self, type, value, traceback):
         if not self.errorsDetected:
@@ -135,10 +134,6 @@ class ExecutionContext:
         self.returnFifo.close()
         self.callFifo.close()
 
-class ControllerMode(Enum):
-    usingPreviousClosestTimeSamples = 1
-    usingCurrentSamples = 2
-
 # Thread for waiting for a call from gerris, execute the controller and return the result.
 class ControllerThread(threading.Thread):
     Request = Struct('di60s')
@@ -149,7 +144,6 @@ class ControllerThread(threading.Thread):
         self.samples = samples
         self.controlModule = controlModule
         self.context = context
-        self.mode = ControllerMode.usingPreviousClosestTimeSamples
         self.defaultActuation = 0.0
 
     def run(self):
@@ -195,31 +189,14 @@ class ControllerThread(threading.Thread):
             with self.context.lock:
                 expectedSamples = self.context.totalVariablesQty * self.context.totalPositionsQty
                 if expectedSamples > 0:
-                    allTimesQty = len(self.samples.allTimes)
-                    if allTimesQty == 0:
+                    if self.samples.currentTime is None or (not self.samples.currentTimeCompleted and len(self.samples.allTimes) == 1):
                         skipControl = True
-                        logging.debug('Controller - Skipping control actuation because of lack of sampling information or expected variables. SamplesQty=%d ExpectedSamples=%d'
-                                      % (allTimesQty, expectedSamples))
-                    else:
-                        if self.mode is ControllerMode.usingPreviousClosestTimeSamples:
-                            samplesTime = self.samples.getPreviousClosestTime(time)
-                            if samplesTime is None:
-                                skipControl = True
-                                logging.debug('Controller - Skipping control actuation because of lack of sampling information prior to current step was detected. Time=%.3f'
-                                              % time)
-                            else:
-                                samplesQty = len(self.samples.samplesByTime(samplesTime))
-                        else: #ControllerMode.usingCurrentSamples
-                            samplesTime = time
-                            if self.samples.currentTime != time:
-                                samplesQty = 0
-                            else:
-                                samplesQty = len(self.samples.currentSamples)
-                        if not skipControl and samplesQty < expectedSamples:
-                            logging.info('Controller - Waiting for pending samples to be received. CurrentTime=%.3f SamplesTime=%.3f ControllerMode=%s Received=%d Expected=%d'
-                                         % (time, samplesTime, self.mode.name, samplesQty, expectedSamples))
-                            self.context.samplesCond.wait()
-
+                        logging.debug('Controller - Skipping control actuation because of lack of sampling information prior to current step was detected. Time=%.3f' % time)
+                    elif not self.samples.currentTimeCompleted:
+                        samplesQty = len(self.samples.currentSamples)
+                        logging.info('Controller - Waiting for pending samples to be received. Time=%.3f SamplesCurrentTime=%.3f Received=%d Expected=%d'
+                                     % (time, self.samples.currentTime, samplesQty, expectedSamples))
+                        self.context.samplesCond.wait()
             if skipControl:
                 result = self.defaultActuation
             else:
@@ -333,6 +310,7 @@ class CollectorThread(threading.Thread):
             self.samples.addProbe(sample)
             expectedSamples = self.context.totalVariablesQty * self.context.totalPositionsQty
             if len(self.samples.currentSamples) == expectedSamples:
+                self.samples.currentTimeCompleted = True
                 logging.info("Collector - Notifying all samples received for time: %.3f. Qty: %d" % (time, expectedSamples))
                 self.context.samplesCond.notify()
 
