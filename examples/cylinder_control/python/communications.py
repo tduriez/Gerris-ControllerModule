@@ -116,7 +116,7 @@ class ExecutionContext:
             msg = "Error detected in positions metadata. Positions exceed the total Qty.: %d" % totalPositionsQty
             raise ValueError(msg)
 
-    def notifyError(self, message, exception):
+    def notifyError(self, message, exception = None):
         if exception:
             logging.error(message, exc_info = True)
         else:
