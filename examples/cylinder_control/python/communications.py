@@ -90,23 +90,21 @@ class ExecutionContext:
         self.processes.append(process)
 
     def clearMetaOnNewStep(self, step):
-        with self.lock:
-            if self.currentStep < step:
-                self.currentStep = step
-                self.currentStepVariables = 0
-                self.currentStepPositions = 0
-                self.variables = []
-                self.positions = []
+        if self.currentStep < step:
+            self.currentStep = step
+            self.currentStepVariables = 0
+            self.currentStepPositions = 0
+            self.variables = []
+            self.positions = []
 
     def nextVariableAndPosition(self):
-        with self.lock:
-            variable = self.variables[self.currentStepVariables]
-            position = self.positions[self.currentStepPositions]
-            self.currentStepVariables += 1
-            if self.currentStepVariables == self.totalVariablesQty:
-                self.currentStepVariables = 0
-                self.currentStepPositions += 1
-            return (variable, position)
+        variable = self.variables[self.currentStepVariables]
+        position = self.positions[self.currentStepPositions]
+        self.currentStepVariables += 1
+        if self.currentStepVariables == self.totalVariablesQty:
+            self.currentStepVariables = 0
+            self.currentStepPositions += 1
+        return (variable, position)
 
     def addVariable(self, variable, totalVariablesQty):
         self.totalVariablesQty = totalVariablesQty
@@ -307,7 +305,6 @@ class CollectorThread(threading.Thread):
             logging.error('Parsing error. Invalid struct data received. Data=%r', query)
             raise
 
-
     def handleForce(self, querySt):
         time = querySt[0]
         step = querySt[1]
@@ -318,6 +315,7 @@ class CollectorThread(threading.Thread):
         sample = Sample(time, step, ForceData(pf, vf, pm, vm))
         logging.debug("Collector- Handling force value. step=%d - time=%.3f - pf=%s - ..."
                       % (step, time, pf))
+
         with self.context.lock:
             self.samples.addForce(sample)
 
@@ -325,13 +323,13 @@ class CollectorThread(threading.Thread):
         time = querySt[0]
         step = querySt[1]
         value = querySt[2]
-        (variable, position) = self.context.nextVariableAndPosition()
-
-        sample = Sample(time, step, ProbeData(position, variable, value))
-        logging.debug("Collector- Handling position value. step=%d - time=%.3f - position=%s - variable=%s - value=%f"
-                      % (step, time, position, variable, value))
 
         with self.context.lock:
+            (variable, position) = self.context.nextVariableAndPosition()
+
+            sample = Sample(time, step, ProbeData(position, variable, value))
+            logging.debug("Collector- Handling position value. step=%d - time=%.3f - position=%s - variable=%s - value=%f"
+                          % (step, time, position, variable, value))
             self.samples.addProbe(sample)
             expectedSamples = self.context.totalVariablesQty * self.context.totalPositionsQty
             if len(self.samples.currentSamples) == expectedSamples:
@@ -343,18 +341,20 @@ class CollectorThread(threading.Thread):
         step = querySt[1]
         totalPositionsQty = querySt[2]
         position = (querySt[3], querySt[4], querySt[5])
-
-        self.context.clearMetaOnNewStep(step)
-        self.context.addPosition(position, totalPositionsQty)
         logging.info("Collector- Handling meta position. Position=(%.3f, %.3f, %.3f) - TotalPositions=%d" % (position[0], position[1], position[2], totalPositionsQty))
+
+        with self.context.lock:
+            self.context.clearMetaOnNewStep(step)
+            self.context.addPosition(position, totalPositionsQty)
 
     def handleMetaVariable(self, querySt):
         time = querySt[0]
         step = querySt[1]
         totalVariablesQty = querySt[2]
         variable = _normalizeKeyword(querySt[3])
-
-        self.context.clearMetaOnNewStep(step)
-        self.context.addVariable(variable, totalVariablesQty)
         logging.info("Collector- Handling meta variable. Variable=%s - TotalVariables=%d" % (variable, totalVariablesQty))
+
+        with self.context.lock:
+            self.context.clearMetaOnNewStep(step)
+            self.context.addVariable(variable, totalVariablesQty)
 
