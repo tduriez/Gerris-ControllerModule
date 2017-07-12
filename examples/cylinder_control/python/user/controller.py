@@ -30,7 +30,7 @@ def actuation(time, step, samples):
     completedTime = samples.completedTime
     if completedTime >= actuationStartTime:
         velError = velocityAbsError(velocityRef, samples.search().byTime(completedTime).asSamples())
-        velErrorInt = velocityAbsErrorIntegrate(velocityRef, samples, lastIterationTime)
+        velErrorInt = velocityAbsErrorIntegrate(velocityRef, samples, completedTime)
         act = kProp*velError + kInt*velErrorInt
         logging.info('step=%d - t=%.3f - act=%.2f - e=%.2f - eInt=%.2f' % (step, time, act, velError, velErrorInt))
     return act
