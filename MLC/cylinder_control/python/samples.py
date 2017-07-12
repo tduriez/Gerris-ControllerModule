@@ -54,14 +54,10 @@ class SamplesData:
     def __init__(self, samplesWindow):
         self.currentStep = None
         self.currentTime = None
-        self._lastSamples = None
+        self.currentTimeCompleted = False
         self.forces = collections.deque()
-        self._allSamples = collections.deque()
         self.samplesWindow = samplesWindow
-        self._probesByTime = collections.defaultdict(list)
-        self._probesByVariable = collections.defaultdict(list)
-        self._probesByLocation = collections.defaultdict(list)
-
+        self._index = SamplesIndex()
 
     def addForce(self, sample):
         self.forces.append(sample)
@@ -70,50 +66,139 @@ class SamplesData:
 
     def addProbe(self, sample):
         if self.currentStep is None or self.currentStep < sample.step:
-            self._lastSamples = SamplesData.SamplesList(sample.time, sample.step)
-            self._allSamples.append(self._lastSamples)
+            self._index.nextSamplesTime(sample.time, sample.step)
             self.currentStep = sample.step
             self.currentTime = sample.time
+            self.currentTimeCompleted = False
         elif self.currentStep > sample.step:
             raise ValueError('Sample to add was generated prior to the last registered timestamp. Sample step:%d - time: %f. Last registered step:%d - time: %f.'
                              % (sample.step, sample.time, self.currentStep, self.currentTime))
 
+        self._index.addProbe(sample)
+        if len(self._index.allTimes) > self.samplesWindow:
+            self._index.removeFirstSamplesTime()
+
+    @property
+    def allTimes(self):
+        return self._index.allTimes
+
+    @property
+    def completedTime(self):
+        if self.currentTimeCompleted:
+            return self.currentTime
+        elif len(self._index.allTimes) > 1:
+            return times[-1]
+        else:
+            return None
+
+    @property
+    def currentSamples(self):
+        if self.currentStep is None:
+            return None
+        else:
+            return self._index.currentSamples
+
+    @property
+    def allVariables(self):
+        return self._index.allVariables
+
+    @property
+    def allLocations(self):
+        return self._index.allLocations
+
+    @property
+    def all(self):
+        return self._index.samples
+
+    def search(self):
+        return SamplesSearcher(self._index)
+
+class SamplesSearcher:
+    def __init__(self, index):
+        self.__index = index
+        self.__times = []
+        self.__variables = []
+        self.__locations = []
+
+    def byTime(self, time):
+        return self.byTimes([time])
+
+    def byTimes(self, times):
+        self.__times = times
+        return self
+
+    def byVariable(self, variable):
+        return self.byVariables([variable])
+
+    def byVariables(self, variables):
+        self.__variables = variables
+        return self
+
+    def byLocation(self, location):
+        return self.byLocations([location])
+
+    def byLocations(self, locations):
+        self.__locations = locations
+        return self
+
+    def asSamples(self):
+        byTimes = self.__filter(self.__index, self.__times, 
+                                lambda index,t: index.samplesByTime(t))
+        byVariables = self.__filter(byTimes, self.__variables, 
+                                lambda index,v: index.samplesByVariable(v))
+        byLocations = self.__filter(byVariables, self.__locations, 
+                                lambda index,l: index.samplesByLocation(l))
+        return byLocations.samples
+
+    def asValues(self):
+        return [s.data.value for s in self.asSamples()]
+
+    def __filter(self, prevIndex, searchItems, funcSearch):
+        newIndex = SamplesIndex()
+        if len(searchItems) == 0:
+            newIndex.extendAllSamples(prevIndex.samples)
+        else:
+            for i in searchItems:
+                newIndex.extendAllSamples(funcSearch(prevIndex, i))
+        return newIndex
+
+class SamplesIndex:
+    def __init__(self):
+        self._lastSamples = None
+        self._allSamples = collections.deque()
+        self._probesByTime = collections.defaultdict(list)
+        self._probesByVariable = collections.defaultdict(list)
+        self._probesByLocation = collections.defaultdict(list)
+
+    def nextSamplesTime(self, time, step):
+        self._lastSamples = SamplesData.SamplesList(time, step)
+        self._allSamples.append(self._lastSamples)
+
+    def extendAllSamples(self, samples):
+        timesAndSteps = sorted(set(map(lambda s:(s.time,s.step), samples)))
+        for time,step in timesAndSteps:
+            samplesInTime = [s for s in samples if s.time == time]
+            self.nextSamplesTime(time,step)
+            for s in samplesInTime:
+                self.addProbe(s)
+
+    def addProbe(self, sample):
         self._lastSamples.samples.append(sample)
 
         self._probesByTime[sample.time].append(sample)
         self._probesByVariable[sample.data.variable].append(sample)
         self._probesByLocation[sample.data.location].append(sample)
-        if len(self._allSamples) > self.samplesWindow:
-            samplesList = self._allSamples.popleft()
-            del self._probesByTime[samplesList.time]
-            for sample in samplesList.samples:
-                self._probesByVariable[sample.data.variable].remove(sample)
-                self._probesByLocation[sample.data.location].remove(sample)
+
+    def removeFirstSamplesTime(self):
+        samplesList = self._allSamples.popleft()
+        del self._probesByTime[samplesList.time]
+        for sample in samplesList.samples:
+            self._probesByVariable[sample.data.variable].remove(sample)
+            self._probesByLocation[sample.data.location].remove(sample)
 
     @property
     def allTimes(self):
         return self._probesByTime.keys()
-
-    def getClosestTime(self, time):
-        if not self._probesByTime:
-            return None
-        elif time in self._probesByTime:
-            return time
-        else:
-            keys = self._probesByTime.keys()
-            times = sorted(keys, key=lambda t:abs(t-time))
-            return times[0]
-
-    def getPreviousClosestTime(self, time):
-        if not self._probesByTime:
-            return None
-        else:
-            keys = [k for k in self._probesByTime.keys() if k < time]
-            if len(keys) == 0:
-                return None
-            else:
-                times = sorted(keys, key=lambda t:abs(t-time))
-                return times[0]
 
     @property
     def allVariables(self):
@@ -149,12 +234,6 @@ class SamplesData:
         return result
 
     @property
-    def all(self):
-        return self.samples
-
-    @property
     def currentSamples(self):
-        if self.currentStep is None:
-            return None
-        else:
-            return self._lastSamples.samples
+        return self._lastSamples.samples
+

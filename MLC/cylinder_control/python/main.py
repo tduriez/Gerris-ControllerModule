@@ -1,4 +1,4 @@
-#! /usr/bin/python
+#!/usr/bin/python
 
 import os
 import sys, getopt
@@ -7,7 +7,7 @@ import threading
 import logging
 import collections
 import re
-from communications import ControllerProcess, CollectorProcess, ExecutionContext
+from communications import ControllerThread, CollectorThread, ExecutionContext
 from samples import SamplesData
 
 samplesWindow = 1
@@ -66,8 +66,8 @@ samples = SamplesData(samplesWindow)
 context = ExecutionContext(procIndex, callFifoPath, returnFifoPath, valuesFifoPath)
 with context:
     # Create Values and Function threads.
-    collector = CollectorProcess(samples, context)
-    controller = ControllerProcess(samples, controlFunc, context)
+    collector = CollectorThread(samples, context)
+    controller = ControllerThread(samples, controlFunc, context)
     context.register(collector)
     context.register(controller)
 
@@ -80,10 +80,8 @@ with context:
     except KeyboardInterrupt:
         logging.error("Keyboard signal detected. Aborting tasks to close the server...")
         context.notifyError('Keyboard signal detected.')
-        context.terminateOnErrors()
     except Exception as e:
         logging.error("Closing with errors: %s" % e)
         context.notifyError('Closing with errors.', e)
-        contxt.terminateOnErrors()
 
 

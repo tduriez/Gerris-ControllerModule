@@ -5,9 +5,8 @@ import logging
 import re
 from struct import *
 from samples import Sample, ForceData, ProbeData
-from enum import Enum
 
-readTimeoutSecs = 10
+_readTimeoutSecs = 10
 _normalizeRegex = re.compile('^[_\-\w\d]+');
 def _normalizeKeyword(string):
     result = _normalizeRegex.match(string)
@@ -25,23 +24,31 @@ class BlocksReader:
         self.__clearBuffer()
 
     def readBlock(self, blockSize):
+        logging.debug('Receiving %d bytes block...' % blockSize)
         while self.bufferReadBytes < blockSize:
-            r, w, x = select.select([self.fd], [], [], readTimeoutSecs)
+            try:
+                r, w, x = select.select([self.fd], [], [], _readTimeoutSecs)
+            except select.error:
+                return self.__returnOnClosed()
+
             if self.fd not in r:
                 return ''
             else:
                 partResult = self.f.read(blockSize - self.bufferReadBytes)
                 partReadBytes = len(partResult)
                 if partReadBytes == 0:
-                    self.closed = True
-                    return ''
+                    return self.__returnOnClosed()
                 else:
                     self.buffer += partResult
                     self.bufferReadBytes += partReadBytes
         result = self.buffer
         self.__clearBuffer()
-        logging.debug("Receiving %d bytes block: %r" % (blockSize, result))
         return result
+
+    def __returnOnClosed(self):
+        self.closed = True
+        logging.debug('Closed file detected')
+        return ''
 
     def __clearBuffer(self):
         self.buffer = ''
@@ -69,9 +76,9 @@ class ExecutionContext:
         logging.info("Opening Gerris2Python FIFO at %s" % self.callFifoPath)
         self.callFifo = open(self.callFifoPath, 'r')
         logging.info("Opening Python2Gerris FIFO at %s" % self.returnFifoPath)
-        self.returnFifo = open(self.returnFifoPath, 'w',0)
+        self.returnFifo = open(self.returnFifoPath, 'w', 0)
         logging.info("Opening Gerris2Python FIFO for actuation values at %s" % self.valuesFifoPath)
-        self.valuesFifo = open(self.valuesFifoPath, 'r')
+        self.valuesFifo = open(self.valuesFifoPath, 'r', 0)
 
     def __exit__(self, type, value, traceback):
         if not self.errorsDetected:
@@ -82,23 +89,21 @@ class ExecutionContext:
         self.processes.append(process)
 
     def clearMetaOnNewStep(self, step):
-        with self.lock:
-            if self.currentStep < step:
-                self.currentStep = step
-                self.currentStepVariables = 0
-                self.currentStepPositions = 0
-                self.variables = []
-                self.positions = []
+        if self.currentStep < step:
+            self.currentStep = step
+            self.currentStepVariables = 0
+            self.currentStepPositions = 0
+            self.variables = []
+            self.positions = []
 
     def nextVariableAndPosition(self):
-        with self.lock:
-            variable = self.variables[self.currentStepVariables]
-            position = self.positions[self.currentStepPositions]
-            self.currentStepVariables += 1
-            if self.currentStepVariables == self.totalVariablesQty:
-                self.currentStepVariables = 0
-                self.currentStepPositions += 1
-            return (variable, position)
+        variable = self.variables[self.currentStepVariables]
+        position = self.positions[self.currentStepPositions]
+        self.currentStepVariables += 1
+        if self.currentStepVariables == self.totalVariablesQty:
+            self.currentStepVariables = 0
+            self.currentStepPositions += 1
+        return (variable, position)
 
     def addVariable(self, variable, totalVariablesQty):
         self.totalVariablesQty = totalVariablesQty
@@ -116,44 +121,29 @@ class ExecutionContext:
             msg = "Error detected in positions metadata. Positions exceed the total Qty.: %d" % totalPositionsQty
             raise ValueError(msg)
 
-    def notifyError(self, message, exception):
+    def notifyError(self, message, exception = None):
         if exception:
             logging.error(message, exc_info = True)
         else:
             logging.error(message)
         self.errorsDetected = True
-        #for p in self.processes:
-        #    if p.is_alive():
-        #        logging.info("Terminating process %s..." % p.name)
-        #        p.terminate()
         self.__closeFiles()
-
-#    def terminateOnErrors(self):
-#        for p in self.processes:
-#            if p.is_alive():
-#                logging.info("Terminating process %s..." % p.name)
-#                p.terminate()
 
     def __closeFiles(self):
         self.valuesFifo.close()
         self.returnFifo.close()
         self.callFifo.close()
 
-class ControllerMode(Enum):
-    usingPreviousClosestTimeSamples = 1
-    usingCurrentSamples = 2
-
-# Process for waiting for a call from gerris, execute the controller and return the result.
-class ControllerProcess(threading.Thread):
+# Thread for waiting for a call from gerris, execute the controller and return the result.
+class ControllerThread(threading.Thread):
     Request = Struct('di60s')
     Response = Struct('d')
 
     def __init__(self, samples, controlModule, context):
-        super(ControllerProcess,self).__init__()
+        super(ControllerThread,self).__init__()
         self.samples = samples
         self.controlModule = controlModule
         self.context = context
-        self.mode = ControllerMode.usingPreviousClosestTimeSamples
         self.defaultActuation = 0.0
 
     def run(self):
@@ -170,7 +160,7 @@ class ControllerProcess(threading.Thread):
             self.context.notifyError('Controller - Closing with errors: %s' % e, e)
         finally:
             self._destroyControlModule()
-            
+
     def _initControlModule(self):
         init = self._getFunction('init')
         if init:
@@ -199,37 +189,21 @@ class ControllerProcess(threading.Thread):
             with self.context.lock:
                 expectedSamples = self.context.totalVariablesQty * self.context.totalPositionsQty
                 if expectedSamples > 0:
-                    allTimesQty = len(self.samples.allTimes)
-                    if allTimesQty == 0:
+                    if self.samples.currentTime is None or (not self.samples.currentTimeCompleted and len(self.samples.allTimes) == 1):
                         skipControl = True
-                        logging.debug('Controller - Skipping control actuation because of lack of sampling information or expected variables. SamplesQty=%d ExpectedSamples=%d'
-                                      % (allTimesQty, expectedSamples))
-                    else:
-                        if self.mode is ControllerMode.usingPreviousClosestTimeSamples:
-                            samplesTime = self.samples.getPreviousClosestTime(time)
-                            if samplesTime is None:
-                                skipControl = True
-                                logging.debug('Controller - Skipping control actuation because of lack of sampling information prior to current step was detected. Time=%.3f'
-                                              % time)
-                            else:
-                                samplesQty = len(self.samples.samplesByTime(samplesTime))
-                        else: #ControllerMode.usingCurrentSamples
-                            samplesTime = time
-                            if self.samples.currentTime != time:
-                                samplesQty = 0
-                            else:
-                                samplesQty = len(self.samples.currentSamples)
-                        if not skipControl and samplesQty < expectedSamples:
-                            logging.info('Controller - Waiting for pending samples to be received. CurrentTime=%.3f SamplesTime=%.3f ControllerMode=%s Received=%d Expected=%d'
-                                         % (time, samplesTime, self.mode.name, samplesQty, expectedSamples))
-                            self.context.samplesCond.wait()
-
-                if skipControl:
-                    result = self.defaultActuation
-                else:
-                    func = self._getFunction(funcName)
+                        logging.debug('Controller - Skipping control actuation because of lack of sampling information prior to current step was detected. Time=%.3f' % time)
+                    elif not self.samples.currentTimeCompleted:
+                        samplesQty = len(self.samples.currentSamples)
+                        logging.info('Controller - Waiting for pending samples to be received. Time=%.3f SamplesCurrentTime=%.3f Received=%d Expected=%d'
+                                     % (time, self.samples.currentTime, samplesQty, expectedSamples))
+                        self.context.samplesCond.wait()
+            if skipControl:
+                result = self.defaultActuation
+            else:
+                func = self._getFunction(funcName)
+                with self.context.lock:
                     result = func(time, step, self.samples)
-                s = self.Response.pack(result)
+            s = self.Response.pack(result)
 
             logging.debug("Controller - Returning controller result - step=%d - t=%.3f - function=%s - result=%f"
                             % (step, time, funcName, result))
@@ -249,8 +223,8 @@ class ControllerProcess(threading.Thread):
             else:
                 return None
 
-# Process for reading the sent values from gerris.
-class CollectorProcess(threading.Thread):
+# Thread for reading the sent values from gerris.
+class CollectorThread(threading.Thread):
     PKG_FORCE_VALUE = 0
     PKG_LOCATION_VALUE = 1
     PKG_META_VARIABLE = 2
@@ -262,7 +236,7 @@ class CollectorProcess(threading.Thread):
     LocationMetaPosition = Struct('=dii3d')
 
     def __init__(self, samples, context):
-        super(CollectorProcess,self).__init__()
+        super(CollectorThread,self).__init__()
         self.samples = samples
         self.context = context
 
@@ -296,8 +270,9 @@ class CollectorProcess(threading.Thread):
             query = ''
             while not query and not valuesReader.closed:
                 query = valuesReader.readBlock(structType.size)
-            querySt = structType.unpack(query)
-            handler(querySt)
+            if not valuesReader.closed:
+                querySt = structType.unpack(query)
+                handler(querySt)
         except KeyError:
                 msg = 'Invalid struct type. Type=%d is not recognized as a valid package. Available types: %s'\
                        % (pkgTypeId, self.pkgTypesMap.keys())
@@ -306,7 +281,6 @@ class CollectorProcess(threading.Thread):
         except struct.error as e:
             logging.error('Parsing error. Invalid struct data received. Data=%r', query)
             raise
-
 
     def handleForce(self, querySt):
         time = querySt[0]
@@ -318,6 +292,7 @@ class CollectorProcess(threading.Thread):
         sample = Sample(time, step, ForceData(pf, vf, pm, vm))
         logging.debug("Collector- Handling force value. step=%d - time=%.3f - pf=%s - ..."
                       % (step, time, pf))
+
         with self.context.lock:
             self.samples.addForce(sample)
 
@@ -325,16 +300,17 @@ class CollectorProcess(threading.Thread):
         time = querySt[0]
         step = querySt[1]
         value = querySt[2]
-        (variable, position) = self.context.nextVariableAndPosition()
-
-        sample = Sample(time, step, ProbeData(position, variable, value))
-        logging.debug("Collector- Handling position value. step=%d - time=%.3f - position=%s - variable=%s - value=%f"
-                      % (step, time, position, variable, value))
 
         with self.context.lock:
+            (variable, position) = self.context.nextVariableAndPosition()
+
+            sample = Sample(time, step, ProbeData(position, variable, value))
+            logging.debug("Collector- Handling position value. step=%d - time=%.3f - position=%s - variable=%s - value=%f"
+                          % (step, time, position, variable, value))
             self.samples.addProbe(sample)
             expectedSamples = self.context.totalVariablesQty * self.context.totalPositionsQty
             if len(self.samples.currentSamples) == expectedSamples:
+                self.samples.currentTimeCompleted = True
                 logging.info("Collector - Notifying all samples received for time: %.3f. Qty: %d" % (time, expectedSamples))
                 self.context.samplesCond.notify()
 
@@ -343,18 +319,20 @@ class CollectorProcess(threading.Thread):
         step = querySt[1]
         totalPositionsQty = querySt[2]
         position = (querySt[3], querySt[4], querySt[5])
-
-        self.context.clearMetaOnNewStep(step)
-        self.context.addPosition(position, totalPositionsQty)
         logging.info("Collector- Handling meta position. Position=(%.3f, %.3f, %.3f) - TotalPositions=%d" % (position[0], position[1], position[2], totalPositionsQty))
+
+        with self.context.lock:
+            self.context.clearMetaOnNewStep(step)
+            self.context.addPosition(position, totalPositionsQty)
 
     def handleMetaVariable(self, querySt):
         time = querySt[0]
         step = querySt[1]
         totalVariablesQty = querySt[2]
         variable = _normalizeKeyword(querySt[3])
-
-        self.context.clearMetaOnNewStep(step)
-        self.context.addVariable(variable, totalVariablesQty)
         logging.info("Collector- Handling meta variable. Variable=%s - TotalVariables=%d" % (variable, totalVariablesQty))
+
+        with self.context.lock:
+            self.context.clearMetaOnNewStep(step)
+            self.context.addVariable(variable, totalVariablesQty)
 
