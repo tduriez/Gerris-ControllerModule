@@ -4,7 +4,12 @@ function J=MLC_Gerris_cylinder_evaluator(idv,parameters,i,fig)
     if nargin<3
         i=[];
     end
-
+    
+    %% Quick drop of innapropriate control laws
+    if ~MLC_Gerris_cylinder_pre_evaluator(idv,parameters)
+        J=parameters.badvalue;
+        return
+    end
     
     %% Setting up the simulation
     
@@ -44,16 +49,35 @@ function J=MLC_Gerris_cylinder_evaluator(idv,parameters,i,fig)
     %% Get the cost
     
     [t,x,y,s,b,dJa,dJb]=xGetResults(idv,parameters,WorkerID);
+    [t0,dJ0]=xGetUncontrolledResults();
+    if length(t0)~=length(t)
+        error('Time vectors does not match with uncontrolled case (length).');
+    else
+        if any(t~=t0)
+            error('Time vectors does not match with uncontrolled case (values).');
+        end
+    end
+    
+    
+    
+    
     
     if t(end)==parameters.problem_variables.total_time
-        J=trapz(t,dJa+parameters.problem_variables.gamma*dJb);
+        J=(trapz(t,dJa+parameters.problem_variables.gamma*dJb)/trapz(t,dJ0));
     else
         J=t(end)*parameters.badvalue;
     end
     
+    
+    
     %% Show results
-    figure(667)
+    
     if nargin>3
+        figure(667)
+    else
+        figure(1)
+    end
+        
           subplot(4,1,1)
     plot(t,s)
     
@@ -61,15 +85,20 @@ function J=MLC_Gerris_cylinder_evaluator(idv,parameters,i,fig)
     plot(t,b)
     
     subplot(4,1,3)
-    plot(t,dJa,t,dJb);
+    plot(t,dJa,t,dJb);hold on
+    plot(t,dJ0,'linewidth',1.2,'color','k')
+    hold off
     
     subplot(4,1,4)
     plot(t,cumtrapz(t,dJa),t,cumtrapz(t,dJb),...
     t,cumtrapz(t,dJa+parameters.problem_variables.gamma*dJb));
+    hold on
+    plot(t,cumtrapz(t,dJ0),'linewidth',1.2,'color','k')
+    hold off
     
     drawnow
     
-    end
+    
     %% deal with errors
     catch err
         fprintf(err.message);
