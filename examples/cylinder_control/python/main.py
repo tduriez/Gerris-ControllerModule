@@ -80,10 +80,8 @@ with context:
     except KeyboardInterrupt:
         logging.error("Keyboard signal detected. Aborting tasks to close the server...")
         context.notifyError('Keyboard signal detected.')
-        context.terminateOnErrors()
     except Exception as e:
         logging.error("Closing with errors: %s" % e)
         context.notifyError('Closing with errors.', e)
-        contxt.terminateOnErrors()
 
 
