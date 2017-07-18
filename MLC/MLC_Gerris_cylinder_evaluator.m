@@ -36,8 +36,8 @@ function J=MLC_Gerris_cylinder_evaluator(idv,parameters,i,fig)
         xSetActuator(idv,parameters,WorkerID);
             
     cd(sprintf('%s%d',parameters.problem_variables.SimDirectory,WorkerID))
-    system('./clear_results')
-    system('./exec_from_steady_state.sh')
+    system('./clear_results.sh');
+    system('./exec_from_steady_state.sh');
     cd (curdir)
     
         
@@ -101,8 +101,22 @@ function J=MLC_Gerris_cylinder_evaluator(idv,parameters,i,fig)
     
     %% deal with errors
     catch err
+        cd(curdir);
         fprintf(err.message);
+        savelog('MatlabCatch')
+        idv.comment=sprintf('Eval fail: %s',err.message);
+        
        J=parameters.badvalue; 
     end
     
+end
+
+function savelog(reason)
+    if ~exist('error_logs','dir')
+        mkdir('error_logs');
+    end
+    if exist('cylinder_control/log.txt','file')
+        copyfile('cylinder_control/log.txt',fullfile('error_logs',sprintf('%s-log-%s.txt',datestr(now,'yyyymmdd-HHMMSS'),reason)));
+    end
+end
     

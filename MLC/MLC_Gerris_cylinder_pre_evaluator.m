@@ -29,5 +29,6 @@ function ok=MLC_Gerris_cylinder_evaluator(idv,parameters)
 
 if std(b)<parameters.problem_variables.LowStd
     ok=0;
+    idv.comment='Pre_eval_fail: STD(b) too low';
     
 end

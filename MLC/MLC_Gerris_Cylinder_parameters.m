@@ -64,7 +64,7 @@
         parameters.problem_variables.start_time=60;
         parameters.problem_variables.total_time=130;
         parameters.problem_variables.maxact=20;
-        parameters.problem_variables.gamma=0.2;
+        parameters.problem_variables.gamma=0.3;
         parameters.problem_variables.LowStd=parameters.problem_variables.maxact/5;
         %% MLC behaviour parameters 
         parameters.save=1;
