@@ -60,7 +60,7 @@
         parameters.preevaluation=1;
         parameters.preev_function='MLC_Gerris_cylinder_pre_evaluator';
         parameters.problem_variables.GfsFile='cylinder_060.000.gfs';
-        parameters.problem_variables.SimDirectory='/home/thomas/00_Git_repos/Gerris-ControllerModule-MLC/MLC/cylinder_control';
+        parameters.problem_variables.SimDirectory='/home/thomas/Documents/00_gits_reps/Gerris-ControllerModule-MLC/MLC/cylinder_control';
         parameters.problem_variables.start_time=60;
         parameters.problem_variables.total_time=130;
         parameters.problem_variables.maxact=20;
