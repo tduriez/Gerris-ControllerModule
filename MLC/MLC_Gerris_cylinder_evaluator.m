@@ -90,11 +90,14 @@ function J=MLC_Gerris_cylinder_evaluator(idv,parameters,i,fig)
     hold off
     
     subplot(4,1,4)
-    plot(t,cumtrapz(t,dJa),t,cumtrapz(t,dJb),...
-    t,cumtrapz(t,dJa+parameters.problem_variables.gamma*dJb));
+    try
+    plot(t,cumtrapz(t,dJa)./cumtrapz(t,t),t,cumtrapz(t,dJb)./cumtrapz(t,t),...
+    t,cumtrapz(t,dJa+parameters.problem_variables.gamma*dJb)./cumtrapz(t,t));
     hold on
-    plot(t,cumtrapz(t,dJ0),'linewidth',1.2,'color','k')
+    plot(t,cumtrapz(t,dJ0)./cumtrapz(t,t),'linewidth',1.2,'color','k')
     hold off
+    catch 
+    end
     
     drawnow
     

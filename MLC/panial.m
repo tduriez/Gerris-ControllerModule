@@ -44,7 +44,14 @@ while 1
         system('killall gerris2D');
     end
     end
-    fprintf(' on (last time on log: %s)\n',time_check)
+    d=dir(fullfile('error_logs','*.txt'));
+    if isempty(d)
+        n_logs=0;
+    else
+        n_logs=numel(d);
+    end
+    
+    fprintf(' on (last time on log: %s) - (%d panial(s) used)\n',time_check,n_logs)
     pause(1)
     catch err
         fprintf(err.message);
@@ -59,6 +66,7 @@ function savelog(reason)
     end
     if exist('cylinder_control/log.txt','file')
         copyfile('cylinder_control/log.txt',fullfile('error_logs',sprintf('%s-log-%s.txt',datestr(now,'yyyymmdd-HHMMSS'),reason)));
+        delete('cylinder_control/log.txt');
     end
 end
         
