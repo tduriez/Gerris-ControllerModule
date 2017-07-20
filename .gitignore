@@ -15,3 +15,7 @@ results_init
 log*.txt
 *.bak
 cylinder_060.000.*
+cylinder_T*
+cylinder_run.gfs
+exec_from*
+MLC/cylinder_control/python/user/
