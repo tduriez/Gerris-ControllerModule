@@ -36,7 +36,7 @@ function J=MLC_Gerris_cylinder_evaluator(idv,parameters,i,fig)
         xSetActuator(idv,parameters,WorkerID);
             
     cd(sprintf('%s%d',parameters.problem_variables.SimDirectory,WorkerID))
-    system('./clear_results.sh');
+    system('make clean');
     system('./exec_from_steady_state.sh');
     cd (curdir)
     
