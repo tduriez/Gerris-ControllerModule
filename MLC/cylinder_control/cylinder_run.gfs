@@ -8,7 +8,7 @@ static const double Ut = 1;
 static const double ACT_THETA_CENTER = 0.375*M_PI;  /* 3/8* pi */
 static const double ACT_THETA_WIDTH = 0.125*M_PI; /*  pi/8 */
 static const double ACT_SIGMA_COEF = 0.75;
-static const double REFINE_MIN = 2;
+static const double REFINE_MIN = 4;
 static const double REFINE_MAX = 7;
 static const double REFINE_SOLID_MAX = 8;
 static const double T_SIZE = 0.2;
@@ -99,7 +99,7 @@ static int negative_quad_symmetric_refinement(double x, double y) {
   weighted  = 0
   beta      = 1
 }
-  GfsAdaptVorticity { istep = 5 } { minlevel = (x < 0 ? positive_quad_symmetric_refinement(x, y) : REFINE_MIN) maxlevel = (x < 0 ? positive_quad_symmetric_refinement(x, y) : REFINE_MAX) cmax = 0.1 }
+  GfsAdaptFunction { istep = 5 } { minlevel = (x < 0 ? positive_quad_symmetric_refinement(x, y) : REFINE_MIN) maxlevel = (x < 0 ? positive_quad_symmetric_refinement(x, y) : REFINE_MAX) cmax = 0.1 } T
   GfsOutputTime { step = 1 } stdout
   GfsOutputSolidForce { step = 0.025 } results/forces.txt
   GfsOutputSimulation { step = 10 } results/cylinder_%07.3f.gfs { variables = U,V,P,T binary = 0 }
@@ -164,22 +164,22 @@ static int negative_quad_symmetric_refinement(double x, double y) {
   beta      = 1
 }
 }
-GfsBox { id = 1 pid = 0 size = 1 x = -0.25 y = -0.25 z = 0 left = GfsBoundary {
+GfsBox { id = 1 pid = 2 size = 1 x = -0.25 y = -0.25 z = 0 left = GfsBoundary {
 GfsBcDirichlet T { return (fabs(y) < T_SIZE/2.0) ? T_CONCENTRATION : 0.; }
 GfsBcDirichlet U Ut
 GfsBcDirichlet V 0
 } }
-GfsBox { id = 2 pid = 2 size = 1 x = -0.25 y = 0.25 z = 0 left = GfsBoundary {
+GfsBox { id = 2 pid = 0 size = 1 x = -0.25 y = 0.25 z = 0 left = GfsBoundary {
 GfsBcDirichlet T { return (fabs(y) < T_SIZE/2.0) ? T_CONCENTRATION : 0.; }
 GfsBcDirichlet U Ut
 GfsBcDirichlet V 0
 } }
-GfsBox { id = 3 pid = 3 size = 1 x = 0.25 y = 0.25 z = 0 }
-GfsBox { id = 4 pid = 1 size = 1 x = 0.25 y = -0.25 z = 0 }
-GfsBox { id = 5 pid = 3 size = 1 x = 0.75 y = 0.25 z = 0 }
-GfsBox { id = 6 pid = 2 size = 1 x = 1.25 y = 0.25 z = 0 right = GfsBoundaryOutflow }
-GfsBox { id = 7 pid = 1 size = 1 x = 0.75 y = -0.25 z = 0 }
-GfsBox { id = 8 pid = 0 size = 1 x = 1.25 y = -0.25 z = 0 right = GfsBoundaryOutflow }
+GfsBox { id = 3 pid = 1 size = 1 x = 0.25 y = 0.25 z = 0 }
+GfsBox { id = 4 pid = 3 size = 1 x = 0.25 y = -0.25 z = 0 }
+GfsBox { id = 5 pid = 1 size = 1 x = 0.75 y = 0.25 z = 0 }
+GfsBox { id = 6 pid = 0 size = 1 x = 1.25 y = 0.25 z = 0 right = GfsBoundaryOutflow }
+GfsBox { id = 7 pid = 3 size = 1 x = 0.75 y = -0.25 z = 0 }
+GfsBox { id = 8 pid = 2 size = 1 x = 1.25 y = -0.25 z = 0 right = GfsBoundaryOutflow }
 2 1 bottom
 1 4 right
 2 3 right

@@ -24,16 +24,16 @@
   SourceDiffusion {} T 0.025
   EventBalance { istep = 10 } 0.1
   SourceViscosity { } 1./Re {}
-  AdaptVorticity { istep = 5 } { 
-    cmax=0.1 
-    minlevel = (x < 0 ? positive_quad_symmetric_refinement(x, y) : REFINE_MIN)
-    maxlevel = (x < 0 ? positive_quad_symmetric_refinement(x, y) : REFINE_MAX)
-  }
-  #AdaptFunction { istep = 5 } { 
+  #AdaptVorticity { istep = 5 } { 
   #  cmax=0.1 
   #  minlevel = (x < 0 ? positive_quad_symmetric_refinement(x, y) : REFINE_MIN)
   #  maxlevel = (x < 0 ? positive_quad_symmetric_refinement(x, y) : REFINE_MAX)
-  #} T
+  #}
+  AdaptFunction { istep = 5 } { 
+    cmax=0.1 
+    minlevel = (x < 0 ? positive_quad_symmetric_refinement(x, y) : REFINE_MIN)
+    maxlevel = (x < 0 ? positive_quad_symmetric_refinement(x, y) : REFINE_MAX)
+  } T
   OutputTime { step = 1 } stdout
   OutputSolidForce { step = DT } results/forces.txt
   OutputSimulation { step = 10 } results/cylinder_%07.3f.gfs { variables = U,V,P,T binary = 0} 

@@ -26,7 +26,7 @@ def actuation(time, step, samples):
         S5 = S[5]
         S6 = S[6]
         S7 = S[7]
-        act = (((S5 * 86.47) - (S3 * (-59.31))) + tanh((S4 * (-47.39))))
+        act = (79.93 * S4)
         if act < 0:
                 act=0
         if act > 20.000000:

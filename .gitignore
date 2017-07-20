@@ -4,3 +4,14 @@
 *.pyc
 *.*~
 *.swp
+*.mpg
+*/save_GP
+MLC/last.txt
+MLC/uncontrolled_logs
+*/error*.gfs
+error*.gfs
+results
+results_init
+log*.txt
+*.bak
+cylinder_060.000.*
