@@ -320,7 +320,7 @@ static void gfs_controller_location_write (GtsObject * o, FILE * fp)
 static void do_send_locations(GfsSimulation* sim,
                 GfsVariable* nonEmptyVariables, guint variablesQty,
                 FttVector* locations, guint locationsQty,
-                int* allIndexes, double* allValues, int world_size)
+                double* valuesPerLocation)
 {
     pyConnectorSendLocationsMetadata(nonEmptyVariables, variablesQty, locations, locationsQty);
     gchar** msgLocsAndVars = malloc(sizeof(gchar*) * (locationsQty + variablesQty + 3));
@@ -344,14 +344,12 @@ static void do_send_locations(GfsSimulation* sim,
     free(msgLocsAndVars);
     g_free(msg);
 
-    for(guint iIndex = 0; iIndex < locationsQty * world_size; ++iIndex){
-        if (allIndexes[iIndex] >= 0) {
-            FttVector p = locations[allIndexes[iIndex]];
-            for (guint iVariable = 0; iVariable < variablesQty; ++iVariable) {
-                GfsVariable* v = &nonEmptyVariables[iVariable];
-                double d = allValues[iIndex * variablesQty + iVariable];
-                pyConnectorSendLocation(v->name, d, p);
-            }
+    for(guint iLocation = 0; iLocation < locationsQty; ++iLocation){
+        FttVector p = locations[iLocation];
+        for (guint iVariable = 0; iVariable < variablesQty; ++iVariable) {
+            GfsVariable* v = &nonEmptyVariables[iVariable];
+            double d = valuesPerLocation[iLocation * variablesQty + iVariable];
+            pyConnectorSendLocation(v->name, d, p);
         }
     }
 }
@@ -432,7 +430,18 @@ static gboolean gfs_controller_location_event (GfsEvent * event,
     MPI_Allgather(currentIndexes, locationsQty, MPI_INT, allIndexes, locationsQty, MPI_INT, MPI_COMM_WORLD);
     MPI_Allgather(currentValues, locationsQty * variablesQty, MPI_DOUBLE, allValues, locationsQty * variablesQty, MPI_DOUBLE, MPI_COMM_WORLD);
 
-    do_send_locations(sim, nonEmptyVariables, variablesQty, locations, locationsQty, allIndexes, allValues, world_size);
+    double* valuesPerLocation = (double*)malloc(sizeof(double) * variablesQty * locationsQty);
+    for(i = 0; i < locationsQty * world_size; ++i) {
+      int iLocation = allIndexes[i];
+      if (iLocation >= 0) {
+        for(guint iVariable = 0; iVariable < variablesQty; ++iVariable) {
+          double value = allValues[i * variablesQty + iVariable];
+          valuesPerLocation[iLocation * variablesQty + iVariable] = value;
+        }
+      }
+    }
+
+    do_send_locations(sim, nonEmptyVariables, variablesQty, locations, locationsQty, valuesPerLocation);
 
     free(locations);
     free(nonEmptyVariables);
@@ -440,6 +449,7 @@ static gboolean gfs_controller_location_event (GfsEvent * event,
     free(currentValues);
     free(allIndexes);
     free(allValues);
+    free(valuesPerLocation);
   }
   return FALSE;
 }

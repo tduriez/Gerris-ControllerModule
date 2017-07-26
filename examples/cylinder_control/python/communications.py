@@ -197,11 +197,10 @@ class ControllerThread(threading.Thread):
                         logging.info('Controller - Waiting for pending samples to be received. Time=%.3f SamplesCurrentTime=%.3f Received=%d Expected=%d'
                                      % (time, self.samples.currentTime, samplesQty, expectedSamples))
                         self.context.samplesCond.wait()
-            if skipControl:
-                result = self.defaultActuation
-            else:
-                func = self._getFunction(funcName)
-                with self.context.lock:
+                if skipControl:
+                    result = self.defaultActuation
+                else:
+                    func = self._getFunction(funcName)
                     result = func(time, step, self.samples)
             s = self.Response.pack(result)
 

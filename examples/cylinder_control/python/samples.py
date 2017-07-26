@@ -87,7 +87,7 @@ class SamplesData:
         if self.currentTimeCompleted:
             return self.currentTime
         elif len(self._index.allTimes) > 1:
-            return times[-1]
+            return self._index.allTimes[-1]
         else:
             return None
 
